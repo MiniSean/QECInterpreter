@@ -1,0 +1,10 @@
+# --- Public packages ---
+# General utility
+numpy
+lmfit
+xarray
+tqdm
+h5py
+scikit-learn
+multipledispatch
+coverage
