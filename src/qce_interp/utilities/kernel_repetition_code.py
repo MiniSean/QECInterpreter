@@ -236,7 +236,7 @@ class RepetitionIndexKernel(IIndexingKernel):
 
     def __post_init__(self):
         if self.nr_repeated_parities < 1:
-            raise warnings.warn(f"Expects number of repeated parities to be at least 1. Instead: {self.nr_repeated_parities}.")
+            warnings.warn(f"Expects number of repeated parities to be at least 1. Instead: {self.nr_repeated_parities}.")
     # endregion
 
 
