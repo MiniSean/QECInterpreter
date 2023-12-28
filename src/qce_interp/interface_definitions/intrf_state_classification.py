@@ -52,6 +52,11 @@ class StateBoundaryKey:
     state_b: StateKey
 
     # region Class Methods
+    def __contains__(self, item):
+        if isinstance(item, StateKey):
+            return item in [self.state_a, self.state_b]
+        return False
+
     def __hash__(self):
         """
         Sorts individual state hashes such that the order is NOT maintained.
