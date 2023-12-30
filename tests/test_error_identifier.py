@@ -1,6 +1,7 @@
 import unittest
 import os
 import numpy as np
+from numpy.typing import NDArray
 from pathlib import Path
 from numpy.testing import assert_array_equal
 from definitions import UNITDATA_DIR
