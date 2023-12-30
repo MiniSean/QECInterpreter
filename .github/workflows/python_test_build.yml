@@ -41,7 +41,7 @@ jobs:
       run: |
         echo "$HOME" >> $GITHUB_PATH
         echo "$HOME/src" >> $GITHUB_PATH
-#        Following might be added in the future:
-#        echo "$HOME/data" >> $GITHUB_PATH
-#        echo "$HOME/data/unittest_data" >> $GITHUB_PATH
+        # Following might be added in the future:
+        # echo "$HOME/data" >> $GITHUB_PATH
+        # echo "$HOME/data/unittest_data" >> $GITHUB_PATH
         PYTHONPATH=./src pytest
