@@ -134,5 +134,15 @@ plot_pij_matrix(
 ```
  
 ![png](data/examples_files/examples_10_1.png)
-    
 
+```python
+from qce_interp import StateAcquisitionContainer
+from qce_interp.visualization import plot_state_classification
+
+qubit_id = QubitIDObj('Z1')
+state_classifier: StateAcquisitionContainer = data_manager.get_state_acquisition(qubit_id=qubit_id)
+fig, ax = plot_state_classification(state_classifier=state_classifier)
+ax.set_title(f'IQ plot qubit {qubit_id.id}')
+```
+
+![png](data/examples_files/examples_11_1.png)

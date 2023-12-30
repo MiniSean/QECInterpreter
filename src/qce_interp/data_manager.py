@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from tqdm import tqdm
 import numpy as np
 from numpy.typing import NDArray
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from pathlib import Path
 from qce_interp.utilities.readwrite_hdf5 import (
     extract_data,
@@ -41,7 +41,11 @@ class AcquisitionChannelIdentifier:
 
 
 class DataManager:
-    """Behaviour class, constructs data entrypoints based on provided measurement data."""
+    """
+    Behaviour class, constructs data entrypoints based on provided measurement data.
+    Currently, a bit of a loaded class as it is responsible for constructing (Labeled)ErrorDetectionIdentifier
+    and responsible for exposing StateClassifierContainer and StateAcquisitionContainer.
+    """
 
     # region Class Properties
     @property
@@ -77,12 +81,14 @@ class DataManager:
     def __init__(
             self,
             classifier_lookup: Dict[IQubitID, StateClassifierContainer],
+            calibration_point_lookup: Dict[IQubitID, StateAcquisitionContainer],
             experiment_index_kernel: IStabilizerIndexingKernel,
             involved_qubit_ids: List[IQubitID],
             device_layout: ISurfaceCodeLayer,
             cycle_stabilizer_counts: List[int],
     ) -> None:
         self._classifier_lookup: Dict[IQubitID, StateClassifierContainer] = classifier_lookup
+        self._calibration_point_lookup: Dict[IQubitID, StateAcquisitionContainer] = calibration_point_lookup
         self._experiment_index_kernel: IStabilizerIndexingKernel = experiment_index_kernel
         self._involved_qubit_ids: List[IQubitID] = involved_qubit_ids
         self._device_layout: ISurfaceCodeLayer = device_layout
@@ -113,6 +119,18 @@ class DataManager:
             error_detection_identifier=self.get_error_detection_classifier(**kwargs),
         )
 
+    def get_state_classifier(self, qubit_id: IQubitID) -> Optional[StateClassifierContainer]:
+        """:return: State classifier based on qubit-ID. Returns None if qubit-ID is not supported."""
+        if qubit_id not in self._classifier_lookup:
+            return None
+        return self._classifier_lookup[qubit_id]
+
+    def get_state_acquisition(self, qubit_id: IQubitID) -> Optional[StateAcquisitionContainer]:
+        """:return: State acquisition based on qubit-ID. Returns None if qubit-ID is not supported."""
+        if qubit_id not in self._calibration_point_lookup:
+            return None
+        return self._calibration_point_lookup[qubit_id]
+
     @classmethod
     def from_file_path(cls, file_path: Path, rounds: List[int], heralded_initialization: bool, qutrit_calibration_points: bool, involved_data_qubit_ids: List[IQubitID], involved_ancilla_qubit_ids: List[IQubitID], expected_parity_lookup: Dict[IQubitID, ParityType], device_layout: ISurfaceCodeLayer) -> 'DataManager':
         """
@@ -141,6 +159,7 @@ class DataManager:
         # Construct datastructures
         involved_qubit_ids: List[IQubitID] = involved_data_qubit_ids + involved_ancilla_qubit_ids
         classifier_lookup: Dict[IQubitID, StateClassifierContainer] = {}
+        calibration_point_lookup: Dict[IQubitID, StateAcquisitionContainer] = {}
         channel_identifier_lookup: Dict[
             IQubitID, AcquisitionChannelIdentifier] = DataManager.get_channel_identifier_lookup(
             channel_names=[name.decode() for name in data_dict[cls.channel_name_key()]],
@@ -188,9 +207,11 @@ class DataManager:
             )
 
             classifier_lookup[qubit_id] = state_classification
+            calibration_point_lookup[qubit_id] = calibration_points
 
         return DataManager(
             classifier_lookup=classifier_lookup,
+            calibration_point_lookup=calibration_point_lookup,
             experiment_index_kernel=experiment_index_kernel,
             involved_qubit_ids=involved_qubit_ids,
             device_layout=device_layout,

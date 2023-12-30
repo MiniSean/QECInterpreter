@@ -1,7 +1,13 @@
 # Import the desired classes
 from .data_manager import DataManager
 from .interface_definitions.intrf_channel_identifier import IQubitID, QubitIDObj
-from .interface_definitions.intrf_state_classification import StateClassifierContainer, StateKey, ParityType, DecisionBoundaries
+from .interface_definitions.intrf_state_classification import (
+    StateAcquisitionContainer,
+    StateClassifierContainer,
+    StateKey,
+    ParityType,
+    DecisionBoundaries,
+)
 from .interface_definitions.intrf_error_identifier import (
     IErrorDetectionIdentifier,
     ILabeledErrorDetectionIdentifier,
@@ -23,6 +29,7 @@ __all__ = [
     "LabeledErrorDetectionIdentifier",
     "LabeledSyndromeDecoder",
     "Distance5LookupTableDecoder",
+    "StateAcquisitionContainer",
     "StateClassifierContainer",
     "StateKey",
     "ParityType",
