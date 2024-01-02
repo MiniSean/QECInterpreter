@@ -5,7 +5,6 @@ Contains functionality for reading, interpreting and processing experimental qua
 Repetition-5 Example
 ===
 
-
 ```python
 import os
 from qce_interp import (
@@ -22,7 +21,7 @@ from qce_interp import (
     Distance5LookupTableDecoder,
     LabeledSyndromeDecoder,
 )
-from definitions import UNITDATA_DIR
+from qce_interp.definitions import UNITDATA_DIR
 example_file_path = os.path.join(UNITDATA_DIR, 'example_repetition_code_distance_5.hdf5')
 ```
 

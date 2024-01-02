@@ -4,7 +4,7 @@ import numpy as np
 from numpy.typing import NDArray
 from pathlib import Path
 from numpy.testing import assert_array_equal
-from definitions import UNITDATA_DIR
+from qce_interp.definitions import UNITDATA_DIR
 from qce_interp.interface_definitions.intrf_channel_identifier import QubitIDObj
 from qce_interp.interface_definitions.intrf_stabilizer_index_kernel import IStabilizerIndexingKernel
 from qce_interp.data_manager import DataManager

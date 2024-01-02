@@ -4,7 +4,7 @@
 import os
 from abc import ABCMeta
 from pathlib import Path
-ROOT_DIR = Path(os.path.dirname(os.path.abspath(__file__))).parent.absolute()
+ROOT_DIR = Path(os.path.dirname(os.path.abspath(__file__))).parent.parent.absolute()
 UNITDATA_DIR = os.path.join(ROOT_DIR, 'data', 'unittest_data')
 
 
