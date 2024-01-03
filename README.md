@@ -1,9 +1,9 @@
 # QECInterpreter
 Contains functionality for reading, interpreting and processing experimental quantum error correction data.
 
-
 Repetition-5 Example
 ===
+
 
 ```python
 import os
@@ -35,7 +35,7 @@ Note: reading a large .hdf5 file might take a few minutes. (approx. 2 minutes fo
 ```python
 data_manager: DataManager = DataManager.from_file_path(
     file_path=example_file_path,
-    rounds=list(range(1, 60 + 1)),
+    rounds=list(range(1, 5 + 1)),
     heralded_initialization=True,
     qutrit_calibration_points=True,
     involved_data_qubit_ids=[QubitIDObj('D7'), QubitIDObj('D4'), QubitIDObj('D5'), QubitIDObj('D6'), QubitIDObj('D3')],
@@ -50,7 +50,7 @@ data_manager: DataManager = DataManager.from_file_path(
 )
 ```
 
-    Processing data file: 100%|██████████| 9/9 [00:06<00:00,  1.47it/s]
+    Processing data file: 100%|██████████| 9/9 [00:04<00:00,  2.12it/s]
     
 
 Construct Error Detection Identifier
@@ -114,26 +114,23 @@ from qce_interp.visualization import plot_state_evolution
 plot_state_evolution(
     syndrome_decoder=decoder,
     target_state=[0, 1, 0, 1, 0],
-    included_rounds=list(range(1, 11)),
+    included_rounds=data_manager.rounds,
 )
 ```
- 
-![png](data/examples_files/examples_9_1.png)
-    
 
-
+![png](data/examples_files/examples_10_1.png)
 
 ```python
 from qce_interp.visualization import plot_pij_matrix
 
 plot_pij_matrix(
     error_identifier=error_identifier,
-    included_rounds=list(range(1, 11)),
+    included_rounds=data_manager.rounds,
 )
 ```
+  
+![png](data/examples_files/examples_11_1.png)
  
-![png](data/examples_files/examples_10_1.png)
-
 ```python
 from qce_interp import StateAcquisitionContainer
 from qce_interp.visualization import plot_state_classification
@@ -143,5 +140,52 @@ state_classifier: StateAcquisitionContainer = data_manager.get_state_acquisition
 fig, ax = plot_state_classification(state_classifier=state_classifier)
 ax.set_title(f'IQ plot qubit {qubit_id.id}')
 ```
+ 
+![png](data/examples_files/examples_12_1.png)
 
-![png](data/examples_files/examples_11_1.png)
+## Quick Setup Guide
+
+### Cloning the repository
+
+1. Open your terminal or command prompt.
+2. Clone the repository using:
+```bash
+git clone git@github.com:MiniSean/QECInterpreter.git
+```
+3. Navigate to the repository root:
+```bash
+cd QECInterpreter
+```
+
+### Setting up the virtual environment
+1. Create a virtual environment in the repository root:
+```bash
+python -m venv .venv
+```
+2. Activate the virtual environment:
+- On Windows:
+```bash
+.venv\Scripts\activate
+```
+- On Unix or MacOS:
+```bash
+source .venv/bin/activate
+```
+
+### Installing Dependencies
+1. Install the required packages:
+```bash
+pip install -r requirements.txt
+```
+
+### Running Jupyter Notebooks
+1. If not already installed, install Jupyter Notebook:
+```bash
+pip install notebook
+```
+2. Launch Jupyter Notebook:
+```bash
+jupyter notebook
+```
+3. Your default web browser should open with the Jupyter interface. Navigate to  `QECInterpreter\src\qce_interp\examples.ipynb` file and open it.
+4. Run the notebook cells as needed.
