@@ -218,44 +218,34 @@ def filter_vertices_within_smaller_angle(center: Vec2D, intersection1: Vec2D, in
     :return: Filtered list of Vec2D vertices.
     """
 
-    def angle_between(v1: np.ndarray, v2: np.ndarray) -> float:
-        """Returns the angle in radians between vectors 'v1' and 'v2'."""
-        v1_u = v1 / np.linalg.norm(v1)
-        v2_u = v2 / np.linalg.norm(v2)
-        return np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0))
+    def is_clockwise(v1: np.ndarray, v2: np.ndarray) -> bool:
+        """:return: Whether moving from v1 to v2 is a clockwise rotation or not."""
+        return np.cross(v1, v2) < 0
 
     # Convert Vec2D to numpy arrays
-    vec1 = intersection1.to_vector() - center.to_vector()
-    vec2 = intersection2.to_vector() - center.to_vector()
+    vec1: np.ndarray = intersection1.to_vector() - center.to_vector()
+    vec2: np.ndarray = intersection2.to_vector() - center.to_vector()
 
-    # Calculate the angle between the two vectors
-    angle = angle_between(vec1, vec2)
-
-    # Determine the smaller angle side
+    # Determine the direction of the smaller angle (clockwise or counter-clockwise)
     cross_product = np.cross(vec1, vec2)
-    if cross_product > 0:  # Smaller angle is counter-clockwise
-        smaller_angle_side = TraversalDirection.COUNTER_CLOCKWISE
-    else:  # Smaller angle is clockwise
-        smaller_angle_side = TraversalDirection.CLOCKWISE
+    smaller_angle_is_ccw = cross_product > 0
 
     # Filter the vertices within the smaller angle
     filtered_vertices = []
     for vertex in vertices:
         if vertex == center or vertex == intersection1 or vertex == intersection2:
             continue
-        vertex_vector = vertex.to_vector() - center.to_vector()
-        angle_with_vec1 = angle_between(vertex_vector, vec1)
-        angle_with_vec2 = angle_between(vertex_vector, vec2)
 
-        # Check if the vertex is within the smaller angle
-        if smaller_angle_side == TraversalDirection.COUNTER_CLOCKWISE:
-            if angle_with_vec1 + angle_with_vec2 <= angle:
-                filtered_vertices.append(vertex)
-        else:  # smaller_angle_side is clockwise
-            combined_angle: float = angle_with_vec1 + angle_with_vec2
-            inverse_angle: float = 2 * np.pi - angle
-            if combined_angle < inverse_angle:
-                filtered_vertices.append(vertex)
+        vertex_vector: np.ndarray = vertex.to_vector() - center.to_vector()
+        cw_to_vec1 = is_clockwise(vertex_vector, vec1)
+        cw_to_vec2 = is_clockwise(vertex_vector, vec2)
+
+        # For counter-clockwise smaller angle, check if vertex is clockwise to vec1 and counter-clockwise to vec2
+        # For clockwise smaller angle, check if vertex is counter-clockwise to vec1 and clockwise to vec2
+        within_ccw_smaller_angle: bool = (smaller_angle_is_ccw and cw_to_vec1 and not cw_to_vec2)
+        within_cw_smaller_angle: bool = (not smaller_angle_is_ccw and not cw_to_vec1 and cw_to_vec2)
+        if within_ccw_smaller_angle or within_cw_smaller_angle:
+            filtered_vertices.append(vertex)
 
     return filtered_vertices
 
