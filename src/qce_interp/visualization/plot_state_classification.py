@@ -84,7 +84,7 @@ def plot_state_shots(state_classifier: StateAcquisitionContainer, **kwargs) -> I
     mincnt = 1
     min_x, max_x, min_y, max_y = -1, +1, -1, +1
     extent: Tuple[float, float, float, float] = (min_x, max_x, min_y, max_y)
-    power_gamma: float = 0.3
+    power_gamma: float = 0.45
 
     # Figures and Axes
     fig, ax = construct_subplot(**kwargs)
@@ -96,7 +96,7 @@ def plot_state_shots(state_classifier: StateAcquisitionContainer, **kwargs) -> I
         listed_colormap: ListedColormap = ListedColormap(sub_colormap)
         alpha_colormaps.append(listed_colormap)
 
-    for _, state_acquisition in state_classifier.state_acquisition_lookup.items():
+    for state, state_acquisition in state_classifier.state_acquisition_lookup.items():
         ax.hexbin(
             x=state_acquisition.shots.real,
             y=state_acquisition.shots.imag,
@@ -104,6 +104,7 @@ def plot_state_shots(state_classifier: StateAcquisitionContainer, **kwargs) -> I
             mincnt=mincnt,
             extent=extent,
             norm=PowerNorm(gamma=power_gamma),
+            zorder=-state.value
         )
     return fig, ax
 
