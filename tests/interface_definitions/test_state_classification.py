@@ -1,6 +1,7 @@
 import unittest
 import numpy as np
 from numpy.testing import assert_array_equal
+import random
 from qce_interp.interface_definitions.intrf_state_classification import (
     StateKey,
     StateAcquisition,
@@ -315,6 +316,80 @@ class StateClassificationTestCase(unittest.TestCase):
             self.state_classifier.get_defect_classification(),
             self.expected_defect,
         )
+
+    def test_random_parity_defect_classification(self):
+        """Tests parity and defect calculation based on random measurement string and definition."""
+        # Predefined list of seeds
+        seeds = [123, 456, 789, 101112, 131415, 13415, 674325, 45, 732, 3, 65, 8743, 24365, 423]
+
+        for seed in seeds:
+            with self.subTest(seed):
+                random.seed(seed)
+                a1 = random.randint(0, 1)
+                a2 = random.randint(0, 1)
+                a3 = random.randint(0, 1)
+                a4 = random.randint(0, 1)
+                a5 = random.randint(0, 1)
+                expected_parity = random.randint(0, 1)
+                initial_condition = int(StateClassifierContainer.binary_to_eigenvalue(np.asarray(expected_parity)))
+
+                m: np.ndarray = np.asarray([a1, a2, a3, a4, a5])
+                p: np.ndarray = StateClassifierContainer.eigenvalue_to_binary(
+                    StateClassifierContainer.calculate_parity(
+                        StateClassifierContainer.binary_to_eigenvalue(m)
+                    )
+                )
+                d: np.ndarray = StateClassifierContainer.eigenvalue_to_binary(
+                    StateClassifierContainer.calculate_defect(
+                        StateClassifierContainer.binary_to_eigenvalue(p),
+                        initial_condition=initial_condition,
+                    )
+                )
+
+                # Assert parity values
+                expected_p: np.ndarray = np.asarray([
+                    m[0],
+                    m[1] ^ m[0],
+                    m[2] ^ m[1],
+                    m[3] ^ m[2],
+                    m[4] ^ m[3],
+                ])
+                assert_array_equal(
+                    p,
+                    expected_p,
+                    err_msg=f"m: {m}, p: {p} (expected p: {expected_p})."
+                )
+                # Assert defect values
+                expected_d: np.ndarray = np.asarray([
+                    p[0] ^ expected_parity,
+                    p[1] ^ p[0],
+                    p[2] ^ p[1],
+                    p[3] ^ p[2],
+                    p[4] ^ p[3],
+                ])
+                assert_array_equal(
+                    d,
+                    expected_d,
+                    err_msg=f"m: {m}, p: {p}, d: {d} (expected d: {expected_d})."
+                )
+                # Alternative assessment
+                expected_d_alternative: np.ndarray = np.asarray([
+                    m[0] ^ expected_parity,
+                    m[1],
+                    m[2] ^ m[0],
+                    m[3] ^ m[1],
+                    m[4] ^ m[2],
+                ])
+                assert_array_equal(
+                    d,
+                    expected_d_alternative,
+                    err_msg=f"m: {m}, p: {p}, d: {d}, p0: {expected_parity} (expected d: {expected_d_alternative})."
+                )
+                assert_array_equal(
+                    expected_d,
+                    expected_d_alternative,
+                    err_msg="Sanity check. Should be equal by definition."
+                )
     # endregion
 
     # region Teardown
