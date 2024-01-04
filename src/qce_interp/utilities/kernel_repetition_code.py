@@ -7,6 +7,7 @@ from typing import List
 import warnings
 import numpy as np
 from numpy.typing import NDArray
+from qce_interp.custom_exceptions import QECCycleNotIncludedException
 from qce_interp.interface_definitions.intrf_stabilizer_index_kernel import IIndexingKernel, IStabilizerIndexingKernel
 from qce_interp.interface_definitions.intrf_stabilizer_index_kernel import (
     IIndexStrategy,
@@ -374,7 +375,9 @@ class RepetitionExperimentKernel(IStabilizerIndexingKernel):
                 stabilizer_measurement_indices = repetition_kernel.get_ordered_stabilizer_measurement_indices(element=qubit_id)
                 final_measurement_indices = repetition_kernel.get_final_measurement_index(element=qubit_id)
                 return self.create_sliced_arrays(stabilizer_measurement_indices + final_measurement_indices, self.kernel_cycle_length, self.experiment_repetitions)
-        return np.asarray([])  # If kernel with specific number of repeated parities is not found
+        raise QECCycleNotIncludedException(
+            f"Requested QEC-cycles: {cycle_stabilizer_count} is not present. Instead choose: {self._rounds}."
+        )
 
     def get_projected_cycle_acquisition_indices(self, qubit_id: IQubitID, cycle_stabilizer_count: int) -> NDArray[np.int_]:
         """
