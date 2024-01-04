@@ -192,8 +192,8 @@ class LabeledSyndromeDecoder(ILabeledSyndromeDecoder, metaclass=ABCMeta):
         result: NDArray[np.int_] = self.get_binary_syndrome_corrections(cycle_stabilizer_count=cycle_stabilizer_count)
         n, m, d = result.shape
 
-        measurements = range(n)
-        stabilizer_repetitions = range(m)
+        measurements = range(1, n + 1)
+        stabilizer_repetitions = range(1, m + 1)
         qubit_ids = [qubit_id.id for qubit_id in self.involved_data_qubit_ids]
 
         data_array = DataArray(
@@ -229,7 +229,7 @@ class LabeledSyndromeDecoder(ILabeledSyndromeDecoder, metaclass=ABCMeta):
         result: NDArray[np.int_] = self.get_binary_projected_corrected(cycle_stabilizer_count=cycle_stabilizer_count)
         n, one, d = result.shape
 
-        measurements = range(n)
+        measurements = range(1, n + 1)
         qubit_ids = [qubit_id.id for qubit_id in self.involved_data_qubit_ids]
 
         data_array = DataArray(
@@ -256,7 +256,7 @@ class LabeledSyndromeDecoder(ILabeledSyndromeDecoder, metaclass=ABCMeta):
         result: NDArray[np.int_] = self.get_binary_syndrome_correction(cycle_stabilizer_count=cycle_stabilizer_count)
         n, one, d = result.shape
 
-        measurements = range(n)
+        measurements = range(1, n + 1)
         qubit_ids = [qubit_id.id for qubit_id in self.involved_data_qubit_ids]
 
         data_array = DataArray(
