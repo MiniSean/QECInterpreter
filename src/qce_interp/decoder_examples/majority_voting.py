@@ -5,7 +5,7 @@
 import numpy as np
 from qce_interp.interface_definitions.intrf_error_identifier import IErrorDetectionIdentifier
 from qce_interp.interface_definitions.intrf_syndrome_decoder import IDecoder
-from qce_interp.interface_definitions.intrf_state_classification import ShotsClassifierContainer
+from qce_interp.interface_definitions.intrf_state_classification import IStateClassifierContainer
 
 
 class MajorityVotingDecoder(IDecoder):
@@ -41,8 +41,8 @@ class MajorityVotingDecoder(IDecoder):
         corrected_binary_output: np.ndarray = binary_output.reshape((n, d))
         # Correct for refocusing (bit-flips)
         if cycle_stabilizer_count % 2 == 0:
-            corrected_binary_output = ShotsClassifierContainer.binary_to_eigenvalue(corrected_binary_output) * -1
-            corrected_binary_output = ShotsClassifierContainer.eigenvalue_to_binary(corrected_binary_output)
+            corrected_binary_output = IStateClassifierContainer.binary_to_eigenvalue(corrected_binary_output) * -1
+            corrected_binary_output = IStateClassifierContainer.eigenvalue_to_binary(corrected_binary_output)
 
         counter: int = 0
         for outcome in corrected_binary_output:

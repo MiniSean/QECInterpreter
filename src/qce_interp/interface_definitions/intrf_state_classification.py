@@ -8,7 +8,7 @@ import itertools
 import numpy as np
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from numpy.typing import NDArray
-from typing import List, Dict, Optional, Callable, Iterator
+from typing import List, Dict, Optional, Callable, TypeVar
 from qce_interp.custom_exceptions import InterfaceMethodException
 from qce_interp.utilities.geometric_definitions import Vec2D
 
@@ -392,69 +392,55 @@ class AssignmentFidelityMatrix:
     # endregion
 
 
-@dataclass(frozen=True)
-class StateClassifierContainer:
-    """Data class, containing classified states based on (complex) acquisition and decision boundaries."""
-    shots: NDArray[np.complex_]
-    decision_boundaries: DecisionBoundaries
-    expected_parity: ParityType = field(default=ParityType.EVEN)
+TStateClassifierContainer = TypeVar('TStateClassifierContainer', bound='IStateClassifierContainer')
 
-    # region Class Methods
-    def get_binary_classification(self) -> NDArray[np.int_]:
-        """:return: Binary classification based on acquisition shots and decision boundaries."""
-        return self._process_tensor(self.shots, self.decision_boundaries.get_binary_predictions)
 
-    def get_ternary_classification(self) -> NDArray[np.int_]:
-        """:return: Ternary classification based on acquisition shots and decision boundaries."""
-        return self._process_tensor(self.shots, self.decision_boundaries.get_predictions)
+class IStateClassifierContainer(ABC):
+    """
+    Interface class, describing get methods for access state information.
+    """
 
-    def get_eigenvalue_classification(self) -> NDArray[np.int_]:
-        """:return: Eigenvalue (0 -> +1, 1 -> -1) classification based on acquisition shots and decision boundaries."""
-        return ShotsClassifierContainer.binary_to_eigenvalue(self.get_binary_classification())
-
-    def get_parity_classification(self) -> NDArray[np.int_]:
-        """:return: Parity classification based on eigenvalue classification."""
-        return ShotsClassifierContainer.calculate_parity(
-            m=self.get_eigenvalue_classification(),
-        )
-
-    def get_defect_classification(self) -> NDArray[np.int_]:
-        """:return: Defect classification based on parity classification."""
-        return ShotsClassifierContainer.calculate_defect(
-            m=self.get_parity_classification(),
-            initial_condition=self.expected_parity.value,
-        )
-
-    def get_defect_rate(self) -> float:
-        """:return: Defect rate based on defect classification."""
-        # Determine the dimension along which to perform the operation
-        defect_array: np.ndarray = ShotsClassifierContainer.eigenvalue_to_binary(self.get_defect_classification())
-        axis = -1 if defect_array.shape[-1] != 1 else -2
-        return float(np.mean(defect_array, axis=axis))
-
-    @classmethod
-    def subdivide_state_classifier(cls, container: 'StateClassifierContainer',
-                                   index_slices: Iterator[NDArray[np.int_]]) -> Iterator['StateClassifierContainer']:
-        """:return: Iterator of state-classifiers based on iterator of index-slices."""
-        for index_slice in index_slices:
-            yield StateClassifierContainer(
-                shots=container.shots[index_slice],
-                decision_boundaries=container.decision_boundaries,
-                expected_parity=container.expected_parity,
-            )
-
-    @classmethod
-    def reshape(cls, container: 'ShotsClassifierContainer', index_slices: NDArray[np.int_]) -> 'ShotsClassifierContainer':
-        """:return: Reshaped version of state-classifiers based on iterator of index-slices."""
-        return ShotsClassifierContainer(
-            shots=np.array([container.shots[index_slice] for index_slice in index_slices]),
-            decision_boundaries=container.decision_boundaries,
-            expected_parity=container.expected_parity,
-        )
-
+    # region Interface Properties
+    @property
+    @abstractmethod
+    def expected_parity(self) -> ParityType:
+        """:return: Expected parity property."""
+        raise InterfaceMethodException
     # endregion
 
-    # region Static Class Methods
+    # region Interface Methods
+    @abstractmethod
+    def get_binary_classification(self) -> NDArray[np.int_]:
+        """:return: Binary classification."""
+        raise InterfaceMethodException
+
+    @abstractmethod
+    def get_ternary_classification(self) -> NDArray[np.int_]:
+        """:return: Ternary classification."""
+        raise InterfaceMethodException
+
+    @abstractmethod
+    def get_eigenvalue_classification(self) -> NDArray[np.int_]:
+        """:return: Eigenvalue (0 -> +1, 1 -> -1) classification."""
+        raise InterfaceMethodException
+
+    @abstractmethod
+    def get_parity_classification(self) -> NDArray[np.int_]:
+        """:return: Parity classification based on eigenvalue classification."""
+        raise InterfaceMethodException
+
+    @abstractmethod
+    def get_defect_classification(self) -> NDArray[np.int_]:
+        """:return: Defect classification based on parity classification."""
+        raise InterfaceMethodException
+
+    @classmethod
+    def reshape(cls, container: TStateClassifierContainer, index_slices: NDArray[np.int_]) -> TStateClassifierContainer:
+        """:return: Reshaped version of state-classifiers based on iterator of index-slices."""
+        raise InterfaceMethodException
+    # endregion
+
+    # region Static Interface Methods
     @staticmethod
     def calculate_parity(m: np.ndarray) -> np.ndarray:
         """
@@ -465,7 +451,7 @@ class StateClassifierContainer:
         :param m: Input tensor with arbitrary shape.
         :return: First derivative of m -> p.
         """
-        result: np.ndarray = ShotsClassifierContainer.calculate_derivative(m=m)
+        result: np.ndarray = IStateClassifierContainer.calculate_derivative(m=m)
         # Determine the dimension along which to perform the operation
         axis: int = -1
 
@@ -486,7 +472,7 @@ class StateClassifierContainer:
         :param initial_condition: Initial condition after taking derivative. (For p[0])
         :return: First derivative of m -> p.
         """
-        return ShotsClassifierContainer.calculate_derivative(m=m, initial_condition=initial_condition)
+        return IStateClassifierContainer.calculate_derivative(m=m, initial_condition=initial_condition)
 
     @staticmethod
     def calculate_derivative(m: np.ndarray, initial_condition: int = +1) -> np.ndarray:
@@ -524,7 +510,125 @@ class StateClassifierContainer:
     def eigenvalue_to_binary(m: np.ndarray) -> np.ndarray:
         """:return: Translated array from eigenvalue to binary subspace. (+1 -> 0, -1 -> 1)."""
         return ((1 - m) // 2).astype(int)
+    # endregion
 
+
+@dataclass(frozen=True)
+class StateClassifierContainer(IStateClassifierContainer):
+    """Data class, containing classified states based on already classified states."""
+    state_classification: NDArray[int]
+    _expected_parity: ParityType = field(default=ParityType.EVEN)
+
+    # region Interface Properties
+    @property
+    def expected_parity(self) -> ParityType:
+        """:return: Expected parity property."""
+        return self._expected_parity
+    # endregion
+
+    # region Class Methods
+    def get_binary_classification(self) -> NDArray[np.int_]:
+        """:return: Binary classification based on acquisition shots and decision boundaries."""
+        return self.state_classification
+
+    def get_ternary_classification(self) -> NDArray[np.int_]:
+        """:return: Ternary classification based on acquisition shots and decision boundaries."""
+        return self.state_classification
+
+    def get_eigenvalue_classification(self) -> NDArray[np.int_]:
+        """:return: Eigenvalue (0 -> +1, 1 -> -1) classification based on acquisition shots and decision boundaries."""
+        return IStateClassifierContainer.binary_to_eigenvalue(self.get_binary_classification())
+
+    def get_parity_classification(self) -> NDArray[np.int_]:
+        """:return: Parity classification based on eigenvalue classification."""
+        return IStateClassifierContainer.calculate_parity(
+            m=self.get_eigenvalue_classification(),
+        )
+
+    def get_defect_classification(self) -> NDArray[np.int_]:
+        """:return: Defect classification based on parity classification."""
+        return IStateClassifierContainer.calculate_defect(
+            m=self.get_parity_classification(),
+            initial_condition=self.expected_parity.value,
+        )
+
+    def get_defect_rate(self) -> float:
+        """:return: Defect rate based on defect classification."""
+        # Determine the dimension along which to perform the operation
+        defect_array: np.ndarray = IStateClassifierContainer.eigenvalue_to_binary(self.get_defect_classification())
+        axis = -1 if defect_array.shape[-1] != 1 else -2
+        return float(np.mean(defect_array, axis=axis))
+
+    @classmethod
+    def reshape(cls, container: TStateClassifierContainer, index_slices: NDArray[np.int_]) -> TStateClassifierContainer:
+        """:return: Reshaped version of state-classifiers based on iterator of index-slices."""
+        return StateClassifierContainer(
+            state_classification=np.array([container.state_classification[index_slice] for index_slice in index_slices]),
+            _expected_parity=container.expected_parity,
+        )
+    # endregion
+
+
+@dataclass(frozen=True)
+class ShotsClassifierContainer(IStateClassifierContainer):
+    """Data class, containing classified states based on (complex) acquisition and decision boundaries."""
+    shots: NDArray[np.complex_]
+    decision_boundaries: DecisionBoundaries
+    _expected_parity: ParityType = field(default=ParityType.EVEN)
+
+    # region Interface Properties
+    @property
+    def expected_parity(self) -> ParityType:
+        """:return: Expected parity property."""
+        return self._expected_parity
+    # endregion
+
+    # region Class Properties
+    @property
+    def state_classifier(self) -> StateClassifierContainer:
+        """:return: Pure state classifier based on self."""
+        return StateClassifierContainer(
+            state_classification=self._process_tensor(self.shots, self.decision_boundaries.get_binary_predictions),
+            _expected_parity=self.expected_parity,
+        )
+    # endregion
+
+    # region Class Methods
+    def get_binary_classification(self) -> NDArray[np.int_]:
+        """:return: Binary classification based on acquisition shots and decision boundaries."""
+        return self.state_classifier.get_binary_classification()
+
+    def get_ternary_classification(self) -> NDArray[np.int_]:
+        """:return: Ternary classification based on acquisition shots and decision boundaries."""
+        return self.state_classifier.get_ternary_classification()
+
+    def get_eigenvalue_classification(self) -> NDArray[np.int_]:
+        """:return: Eigenvalue (0 -> +1, 1 -> -1) classification based on acquisition shots and decision boundaries."""
+        return self.state_classifier.get_eigenvalue_classification()
+
+    def get_parity_classification(self) -> NDArray[np.int_]:
+        """:return: Parity classification based on eigenvalue classification."""
+        return self.state_classifier.get_parity_classification()
+
+    def get_defect_classification(self) -> NDArray[np.int_]:
+        """:return: Defect classification based on parity classification."""
+        return self.state_classifier.get_defect_classification()
+
+    def get_defect_rate(self) -> float:
+        """:return: Defect rate based on defect classification."""
+        return self.state_classifier.get_defect_rate()
+
+    @classmethod
+    def reshape(cls, container: TStateClassifierContainer, index_slices: NDArray[np.int_]) -> TStateClassifierContainer:
+        """:return: Reshaped version of state-classifiers based on iterator of index-slices."""
+        return ShotsClassifierContainer(
+            shots=np.array([container.shots[index_slice] for index_slice in index_slices]),
+            decision_boundaries=container.decision_boundaries,
+            _expected_parity=container.expected_parity,
+        )
+    # endregion
+
+    # region Static Class Methods
     @staticmethod
     def _process_tensor(tensor: np.ndarray, func: Callable[[np.ndarray], np.ndarray]) -> np.ndarray:
         """
