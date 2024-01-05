@@ -410,17 +410,17 @@ class StateClassifierContainer:
 
     def get_eigenvalue_classification(self) -> NDArray[np.int_]:
         """:return: Eigenvalue (0 -> +1, 1 -> -1) classification based on acquisition shots and decision boundaries."""
-        return self.binary_to_eigenvalue(self.get_binary_classification())
+        return ShotsClassifierContainer.binary_to_eigenvalue(self.get_binary_classification())
 
     def get_parity_classification(self) -> NDArray[np.int_]:
         """:return: Parity classification based on eigenvalue classification."""
-        return StateClassifierContainer.calculate_parity(
+        return ShotsClassifierContainer.calculate_parity(
             m=self.get_eigenvalue_classification(),
         )
 
     def get_defect_classification(self) -> NDArray[np.int_]:
         """:return: Defect classification based on parity classification."""
-        return StateClassifierContainer.calculate_defect(
+        return ShotsClassifierContainer.calculate_defect(
             m=self.get_parity_classification(),
             initial_condition=self.expected_parity.value,
         )
@@ -428,7 +428,7 @@ class StateClassifierContainer:
     def get_defect_rate(self) -> float:
         """:return: Defect rate based on defect classification."""
         # Determine the dimension along which to perform the operation
-        defect_array: np.ndarray = self.eigenvalue_to_binary(self.get_defect_classification())
+        defect_array: np.ndarray = ShotsClassifierContainer.eigenvalue_to_binary(self.get_defect_classification())
         axis = -1 if defect_array.shape[-1] != 1 else -2
         return float(np.mean(defect_array, axis=axis))
 
@@ -444,10 +444,9 @@ class StateClassifierContainer:
             )
 
     @classmethod
-    def reshape(cls, container: 'StateClassifierContainer',
-                index_slices: NDArray[np.int_]) -> 'StateClassifierContainer':
+    def reshape(cls, container: 'ShotsClassifierContainer', index_slices: NDArray[np.int_]) -> 'ShotsClassifierContainer':
         """:return: Reshaped version of state-classifiers based on iterator of index-slices."""
-        return StateClassifierContainer(
+        return ShotsClassifierContainer(
             shots=np.array([container.shots[index_slice] for index_slice in index_slices]),
             decision_boundaries=container.decision_boundaries,
             expected_parity=container.expected_parity,
@@ -466,7 +465,7 @@ class StateClassifierContainer:
         :param m: Input tensor with arbitrary shape.
         :return: First derivative of m -> p.
         """
-        result: np.ndarray = StateClassifierContainer.calculate_derivative(m=m)
+        result: np.ndarray = ShotsClassifierContainer.calculate_derivative(m=m)
         # Determine the dimension along which to perform the operation
         axis: int = -1
 
@@ -487,7 +486,7 @@ class StateClassifierContainer:
         :param initial_condition: Initial condition after taking derivative. (For p[0])
         :return: First derivative of m -> p.
         """
-        return StateClassifierContainer.calculate_derivative(m=m, initial_condition=initial_condition)
+        return ShotsClassifierContainer.calculate_derivative(m=m, initial_condition=initial_condition)
 
     @staticmethod
     def calculate_derivative(m: np.ndarray, initial_condition: int = +1) -> np.ndarray:

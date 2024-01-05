@@ -8,7 +8,7 @@ from qce_interp.interface_definitions.intrf_state_classification import (
     StateBoundaryKey,
     DecisionBoundaries,
     StateAcquisitionContainer,
-    StateClassifierContainer,
+    ShotsClassifierContainer,
     ParityType,
 )
 from qce_interp.utilities.geometric_definitions import Vec2D
@@ -171,7 +171,7 @@ class StateClassificationTestCase(unittest.TestCase):
         p1: int = cls.expected_parity[1]
         cls.expected_defect = np.asarray([p.value * p0,  p0 * p1, -1,  1, -1, -1,  1,  1, -1,  1])
 
-        cls.state_classifier: StateClassifierContainer = StateClassifierContainer(
+        cls.state_classifier: ShotsClassifierContainer = ShotsClassifierContainer(
             shots=semi_random_shots,
             decision_boundaries=decision_boundaries,
             expected_parity=p,
@@ -187,7 +187,7 @@ class StateClassificationTestCase(unittest.TestCase):
         """Tests correct conversion to parity."""
         eigenvalues = np.copy(self.expected_eigenvalue)
         eigenvalues[0] = -1
-        parities = StateClassifierContainer.calculate_parity(
+        parities = ShotsClassifierContainer.calculate_parity(
             m=eigenvalues,
         )
         self.assertEqual(
@@ -195,7 +195,7 @@ class StateClassificationTestCase(unittest.TestCase):
             parities[0],
         )
         eigenvalues[0] = +1
-        parities = StateClassifierContainer.calculate_parity(
+        parities = ShotsClassifierContainer.calculate_parity(
             m=eigenvalues,
         )
         self.assertEqual(
@@ -211,7 +211,7 @@ class StateClassificationTestCase(unittest.TestCase):
             [-1, +1],
             [-1, +1],
         ])
-        parities = StateClassifierContainer.calculate_parity(
+        parities = ShotsClassifierContainer.calculate_parity(
             m=eigenvalues,
         )
         assert_array_equal(
@@ -230,7 +230,7 @@ class StateClassificationTestCase(unittest.TestCase):
             [-1],
             [-1],
         ])
-        parities = StateClassifierContainer.calculate_parity(
+        parities = ShotsClassifierContainer.calculate_parity(
             m=eigenvalues,
         )
         assert_array_equal(
@@ -252,7 +252,7 @@ class StateClassificationTestCase(unittest.TestCase):
             [-1, -1],
             [-1, -1],
         ])
-        defect = StateClassifierContainer.calculate_defect(
+        defect = ShotsClassifierContainer.calculate_defect(
             m=parities,
             initial_condition=-1
         )
@@ -272,7 +272,7 @@ class StateClassificationTestCase(unittest.TestCase):
             [-1],
             [-1],
         ])
-        defect = StateClassifierContainer.calculate_defect(
+        defect = ShotsClassifierContainer.calculate_defect(
             m=parities,
             initial_condition=-1
         )
@@ -331,17 +331,17 @@ class StateClassificationTestCase(unittest.TestCase):
                 a4 = random.randint(0, 1)
                 a5 = random.randint(0, 1)
                 expected_parity = random.randint(0, 1)
-                initial_condition = int(StateClassifierContainer.binary_to_eigenvalue(np.asarray(expected_parity)))
+                initial_condition = int(ShotsClassifierContainer.binary_to_eigenvalue(np.asarray(expected_parity)))
 
                 m: np.ndarray = np.asarray([a1, a2, a3, a4, a5])
-                p: np.ndarray = StateClassifierContainer.eigenvalue_to_binary(
-                    StateClassifierContainer.calculate_parity(
-                        StateClassifierContainer.binary_to_eigenvalue(m)
+                p: np.ndarray = ShotsClassifierContainer.eigenvalue_to_binary(
+                    ShotsClassifierContainer.calculate_parity(
+                        ShotsClassifierContainer.binary_to_eigenvalue(m)
                     )
                 )
-                d: np.ndarray = StateClassifierContainer.eigenvalue_to_binary(
-                    StateClassifierContainer.calculate_defect(
-                        StateClassifierContainer.binary_to_eigenvalue(p),
+                d: np.ndarray = ShotsClassifierContainer.eigenvalue_to_binary(
+                    ShotsClassifierContainer.calculate_defect(
+                        ShotsClassifierContainer.binary_to_eigenvalue(p),
                         initial_condition=initial_condition,
                     )
                 )
