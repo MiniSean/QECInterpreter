@@ -755,7 +755,7 @@ class LabeledErrorDetectionIdentifier(ILabeledErrorDetectionIdentifier):
         n, one, p = result.shape
 
         # Convert to xarray.DataArray with meaningful dimensions and coordinates
-        measurements = range(1, n + 1)
+        measurements = range(n)
         binary_values = range(one)
         qubit_ids = [qubit_id.id for qubit_id in self.involved_qubit_ids]
 
@@ -800,8 +800,8 @@ class LabeledErrorDetectionIdentifier(ILabeledErrorDetectionIdentifier):
         )
         n, m, s = result.shape
 
-        measurements = range(1, n + 1)
-        stabilizer_repetitions = range(1, m + 1)
+        measurements = range(n)
+        stabilizer_repetitions = range(m)
         qubit_ids = [qubit_id.id for qubit_id in self.involved_stabilizer_qubit_ids]
 
         data_array = DataArray(
@@ -845,7 +845,7 @@ class LabeledErrorDetectionIdentifier(ILabeledErrorDetectionIdentifier):
         )
         n, one, s = result.shape
 
-        measurements = range(1, n + 1)
+        measurements = range(n)
         qubit_ids = [qubit_id.id for qubit_id in self.involved_stabilizer_qubit_ids]
 
         data_array = DataArray(
@@ -889,8 +889,8 @@ class LabeledErrorDetectionIdentifier(ILabeledErrorDetectionIdentifier):
         )
         n, m_plus_one, s = result.shape
 
-        measurements = range(1, n + 1)
-        stabilizer_repetitions = range(1, m_plus_one + 1)
+        measurements = range(n)
+        stabilizer_repetitions = range(m_plus_one)
         qubit_ids = [qubit_id.id for qubit_id in self.involved_stabilizer_qubit_ids]
 
         data_array = DataArray(
@@ -935,8 +935,8 @@ class LabeledErrorDetectionIdentifier(ILabeledErrorDetectionIdentifier):
 
         for qubit_id, result in result_dict.items():
             n, m_plus_one = result.shape
-            measurements = range(1, n + 1)
-            stabilizer_repetitions = range(1, m_plus_one + 1)
+            measurements = range(n)
+            stabilizer_repetitions = range(m_plus_one)
 
             data_array = DataArray(
                 result,
@@ -978,7 +978,7 @@ class LabeledErrorDetectionIdentifier(ILabeledErrorDetectionIdentifier):
         )
         n, one, d = result.shape
 
-        measurements = range(1, n + 1)
+        measurements = range(n)
         data_qubit_ids = [qubit_id.id for qubit_id in self.involved_data_qubit_ids]
 
         data_array = DataArray(
@@ -1021,7 +1021,7 @@ class LabeledErrorDetectionIdentifier(ILabeledErrorDetectionIdentifier):
         )
         n, one, d = result.shape
 
-        measurements = range(1, n + 1)
+        measurements = range(n)
         data_qubit_ids = [qubit_id.id for qubit_id in self.involved_data_qubit_ids]
 
         data_array = DataArray(
