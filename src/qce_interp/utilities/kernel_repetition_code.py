@@ -172,7 +172,7 @@ class RepetitionIndexKernel(IIndexingKernel):
     @property
     def index_delta_stabilizer_measurements(self) -> int:
         """:return: Number of measurements performed during stabilizer rounds."""
-        return self.nr_repeated_parities - 1
+        return max(0, self.nr_repeated_parities - 1)
 
     @property
     def index_delta_final_measurement(self) -> int:
@@ -233,11 +233,15 @@ class RepetitionIndexKernel(IIndexingKernel):
         """
         if element not in self.involved_qubit_ids:
             return []
+        # Guard clause, ancilla measurement have no final measurement index when number of repeated parities (qec-cyles) is 0.
+        zero_qec_cycle_exception: bool = element in self.involved_ancilla_qubit_ids and self.nr_repeated_parities == 0
+        if zero_qec_cycle_exception:
+            return []
         return [self._exclusive_start_index + self.index_delta_heralded_initialization + self.index_delta_stabilizer_measurements + self.index_delta_final_measurement]
 
     def __post_init__(self):
-        if self.nr_repeated_parities < 1:
-            warnings.warn(f"Expects number of repeated parities to be at least 1. Instead: {self.nr_repeated_parities}.")
+        if self.nr_repeated_parities < 0:
+            warnings.warn(f"Expects number of repeated parities to be at least 0. Instead: {self.nr_repeated_parities}.")
     # endregion
 
 
@@ -388,8 +392,7 @@ class RepetitionExperimentKernel(IStabilizerIndexingKernel):
         for repetition_kernel in self._repetition_kernels:
             if repetition_kernel.nr_repeated_parities == cycle_stabilizer_count:
                 final_measurement_indices = repetition_kernel.get_final_measurement_index(element=qubit_id)
-                return self.create_sliced_arrays(final_measurement_indices, self.kernel_cycle_length,
-                                                 self.experiment_repetitions)
+                return self.create_sliced_arrays(final_measurement_indices, self.kernel_cycle_length, self.experiment_repetitions)
         return np.asarray([])  # If kernel with specific number of repeated parities is not found
     # endregion
 

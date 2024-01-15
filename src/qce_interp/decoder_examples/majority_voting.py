@@ -40,7 +40,7 @@ class MajorityVotingDecoder(IDecoder):
         # (N, D)
         corrected_binary_output: np.ndarray = binary_output.reshape((n, d))
         # Correct for refocusing (bit-flips)
-        if cycle_stabilizer_count % 2 == 0:
+        if cycle_stabilizer_count % 2 == 0 and cycle_stabilizer_count != 0:
             corrected_binary_output = IStateClassifierContainer.binary_to_eigenvalue(corrected_binary_output) * -1
             corrected_binary_output = IStateClassifierContainer.eigenvalue_to_binary(corrected_binary_output)
 

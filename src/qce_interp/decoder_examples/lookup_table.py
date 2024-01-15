@@ -118,7 +118,7 @@ class LookupTableDecoder(ISyndromeDecoder, metaclass=ABCMeta):
         # (N, 1, D)
         eigenvalue_projected_corrected = eigenvalue_projected_classification * eigenvalue_syndrome_correction
         # Correct for refocusing (bit-flips)
-        if cycle_stabilizer_count % 2 == 0:
+        if cycle_stabilizer_count % 2 == 0 and cycle_stabilizer_count != 0:
             eigenvalue_projected_corrected = eigenvalue_projected_corrected * -1
         # Post-process
         binary_projected_corrected: NDArray[np.int_] = IStateClassifierContainer.eigenvalue_to_binary(eigenvalue_projected_corrected)

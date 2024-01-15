@@ -340,6 +340,10 @@ class ErrorDetectionIdentifier(IErrorDetectionIdentifier):
         # Prepare output shape
         n, m = stabilizer_acquisition_indices.shape
         s: int = len(self.involved_stabilizer_qubit_ids)
+        # Guard clause, return empty array at 0 qec rounds
+        if stabilizer_acquisition_indices.size == 0:
+            return np.empty(shape=(n, m, s))
+
         result: NDArray[np.int_] = np.zeros(shape=(s, n, m), dtype=np.int_)
         for i, qubit_id in enumerate(self.involved_stabilizer_qubit_ids):
             state_classifier: IStateClassifierContainer = self._classifier_lookup[qubit_id]
@@ -370,6 +374,10 @@ class ErrorDetectionIdentifier(IErrorDetectionIdentifier):
         # Prepare output shape
         n, m = stabilizer_acquisition_indices.shape
         s: int = len(self.involved_stabilizer_qubit_ids)
+        # Guard clause, return empty array at 0 qec rounds
+        if stabilizer_acquisition_indices.size == 0:
+            return np.empty(shape=(n, m, s))
+
         result: NDArray[np.int_] = np.zeros(shape=(s, n, m), dtype=np.int_)
         for i, qubit_id in enumerate(self.involved_stabilizer_qubit_ids):
             state_classifier: IStateClassifierContainer = self._classifier_lookup[qubit_id]
