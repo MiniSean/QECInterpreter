@@ -9,3 +9,7 @@ scikit-learn
 multipledispatch
 coverage
 matplotlib
+
+# 3rd party libraries
+pymatching
+stim
