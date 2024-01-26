@@ -18,7 +18,7 @@ from qce_interp.interface_definitions.intrf_syndrome_decoder import (
     ISyndromeDecoder,
     ILabeledSyndromeDecoder,
 )
-from qce_interp.interface_definitions.intrf_state_classification import StateClassifierContainer
+from qce_interp.interface_definitions.intrf_state_classification import IStateClassifierContainer
 
 
 class LookupTableDecoder(ISyndromeDecoder, metaclass=ABCMeta):
@@ -62,8 +62,8 @@ class LookupTableDecoder(ISyndromeDecoder, metaclass=ABCMeta):
     def eigenvalue_syndrome_lookup(self) -> Dict[tuple, tuple]:
         """:return: Syndrome lookup from stabilizer syndrome to data correction. In eigen basis."""
         return {
-            tuple(StateClassifierContainer.binary_to_eigenvalue(np.asarray(key))): tuple(
-                StateClassifierContainer.binary_to_eigenvalue(np.asarray(value)))
+            tuple(IStateClassifierContainer.binary_to_eigenvalue(np.asarray(key))): tuple(
+                IStateClassifierContainer.binary_to_eigenvalue(np.asarray(value)))
             for key, value in self.binary_syndrome_lookup.items()
         }
     # endregion
@@ -99,7 +99,7 @@ class LookupTableDecoder(ISyndromeDecoder, metaclass=ABCMeta):
         d = eigenvalue_corrections.shape[-1]
         result = eigenvalue_corrections.reshape((n, m, d))
 
-        return StateClassifierContainer.eigenvalue_to_binary(result)
+        return IStateClassifierContainer.eigenvalue_to_binary(result)
 
     @lru_cache(maxsize=None)
     def get_binary_projected_corrected(self, cycle_stabilizer_count: int) -> NDArray[np.int_]:
@@ -113,15 +113,15 @@ class LookupTableDecoder(ISyndromeDecoder, metaclass=ABCMeta):
         binary_projected_classification: NDArray[np.int_] = self._error_identifier.get_binary_projected_classification(cycle_stabilizer_count=cycle_stabilizer_count)
         binary_syndrome_correction: NDArray[np.int_] = self.get_binary_syndrome_correction(cycle_stabilizer_count=cycle_stabilizer_count)
         # Pre-process
-        eigenvalue_projected_classification = StateClassifierContainer.binary_to_eigenvalue(binary_projected_classification)
-        eigenvalue_syndrome_correction = StateClassifierContainer.binary_to_eigenvalue(binary_syndrome_correction)
+        eigenvalue_projected_classification = IStateClassifierContainer.binary_to_eigenvalue(binary_projected_classification)
+        eigenvalue_syndrome_correction = IStateClassifierContainer.binary_to_eigenvalue(binary_syndrome_correction)
         # (N, 1, D)
         eigenvalue_projected_corrected = eigenvalue_projected_classification * eigenvalue_syndrome_correction
         # Correct for refocusing (bit-flips)
-        if cycle_stabilizer_count % 2 == 0:
+        if cycle_stabilizer_count % 2 == 0 and cycle_stabilizer_count != 0:
             eigenvalue_projected_corrected = eigenvalue_projected_corrected * -1
         # Post-process
-        binary_projected_corrected: NDArray[np.int_] = StateClassifierContainer.eigenvalue_to_binary(eigenvalue_projected_corrected)
+        binary_projected_corrected: NDArray[np.int_] = IStateClassifierContainer.eigenvalue_to_binary(eigenvalue_projected_corrected)
         return binary_projected_corrected
 
     def get_fidelity(self, cycle_stabilizer_count: int, target_state: np.ndarray) -> float:

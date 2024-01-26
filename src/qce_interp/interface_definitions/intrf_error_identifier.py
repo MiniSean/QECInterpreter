@@ -13,7 +13,7 @@ from qce_interp.custom_exceptions import InterfaceMethodException
 from qce_interp.interface_definitions.intrf_channel_identifier import IQubitID
 from qce_interp.interface_definitions.intrf_connectivity_surface_code import ISurfaceCodeLayer
 from qce_interp.interface_definitions.intrf_stabilizer_index_kernel import IStabilizerIndexingKernel
-from qce_interp.interface_definitions.intrf_state_classification import StateClassifierContainer
+from qce_interp.interface_definitions.intrf_state_classification import IStateClassifierContainer
 
 
 class IErrorDetectionIdentifier(ABC):
@@ -295,7 +295,7 @@ class ErrorDetectionIdentifier(IErrorDetectionIdentifier):
     # region Class Constructor
     def __init__(
             self,
-            classifier_lookup: Dict[IQubitID, StateClassifierContainer],
+            classifier_lookup: Dict[IQubitID, IStateClassifierContainer],
             index_kernel: IStabilizerIndexingKernel, involved_qubit_ids: List[IQubitID],
             device_layout: ISurfaceCodeLayer,
             use_heralded_post_selection: bool = False,
@@ -303,7 +303,7 @@ class ErrorDetectionIdentifier(IErrorDetectionIdentifier):
             use_stabilizer_leakage_post_selection: bool = False,
             use_computational_parity: bool = False,
     ):
-        self._classifier_lookup: Dict[IQubitID, StateClassifierContainer] = classifier_lookup
+        self._classifier_lookup: Dict[IQubitID, IStateClassifierContainer] = classifier_lookup
         self._index_kernel: IStabilizerIndexingKernel = index_kernel
         self._involved_qubit_ids: List[IQubitID] = involved_qubit_ids
         self._device_layout: ISurfaceCodeLayer = device_layout
@@ -333,8 +333,8 @@ class ErrorDetectionIdentifier(IErrorDetectionIdentifier):
         p: int = len(self.involved_qubit_ids)
         result: NDArray[np.int_] = np.zeros(shape=(p, n, one), dtype=np.int_)
         for i, qubit_id in enumerate(self.involved_qubit_ids):
-            state_classifier: StateClassifierContainer = self._classifier_lookup[qubit_id]
-            state_classifier: StateClassifierContainer = StateClassifierContainer.reshape(
+            state_classifier: IStateClassifierContainer = self._classifier_lookup[qubit_id]
+            state_classifier: IStateClassifierContainer = state_classifier.reshape(
                 container=state_classifier,
                 index_slices=heralded_acquisition_indices,
             )
@@ -354,17 +354,21 @@ class ErrorDetectionIdentifier(IErrorDetectionIdentifier):
         """
         # Data allocation
         any_qubit_id: IQubitID = self.involved_stabilizer_qubit_ids[0]
-        stabilizer_acquisition_indices: NDArray[np.int_] = self._index_kernel.get_stabilizer_acquisition_indices(qubit_id=any_qubit_id, cycle_stabilizer_count=cycle_stabilizer_count)
+        stabilizer_acquisition_indices: NDArray[np.int_] = self._index_kernel.get_stabilizer_and_projected_cycle_acquisition_indices(qubit_id=any_qubit_id, cycle_stabilizer_count=cycle_stabilizer_count)
         post_selection_mask = self.get_post_selection_mask(cycle_stabilizer_count=cycle_stabilizer_count)
         stabilizer_acquisition_indices = stabilizer_acquisition_indices[post_selection_mask]
 
         # Prepare output shape
         n, m = stabilizer_acquisition_indices.shape
         s: int = len(self.involved_stabilizer_qubit_ids)
+        # Guard clause, return empty array at 0 qec rounds
+        if stabilizer_acquisition_indices.size == 0:
+            return np.empty(shape=(n, m, s))
+
         result: NDArray[np.int_] = np.zeros(shape=(s, n, m), dtype=np.int_)
         for i, qubit_id in enumerate(self.involved_stabilizer_qubit_ids):
-            state_classifier: StateClassifierContainer = self._classifier_lookup[qubit_id]
-            state_classifier: StateClassifierContainer = StateClassifierContainer.reshape(
+            state_classifier: IStateClassifierContainer = self._classifier_lookup[qubit_id]
+            state_classifier: IStateClassifierContainer = state_classifier.reshape(
                 container=state_classifier,
                 index_slices=stabilizer_acquisition_indices,
             )
@@ -384,17 +388,21 @@ class ErrorDetectionIdentifier(IErrorDetectionIdentifier):
         """
         # Data allocation
         any_qubit_id: IQubitID = self.involved_stabilizer_qubit_ids[0]
-        stabilizer_acquisition_indices: NDArray[np.int_] = self._index_kernel.get_stabilizer_acquisition_indices(qubit_id=any_qubit_id, cycle_stabilizer_count=cycle_stabilizer_count)
+        stabilizer_acquisition_indices: NDArray[np.int_] = self._index_kernel.get_stabilizer_and_projected_cycle_acquisition_indices(qubit_id=any_qubit_id, cycle_stabilizer_count=cycle_stabilizer_count)
         post_selection_mask = self.get_post_selection_mask(cycle_stabilizer_count=cycle_stabilizer_count)
         stabilizer_acquisition_indices = stabilizer_acquisition_indices[post_selection_mask]
 
         # Prepare output shape
         n, m = stabilizer_acquisition_indices.shape
         s: int = len(self.involved_stabilizer_qubit_ids)
+        # Guard clause, return empty array at 0 qec rounds
+        if stabilizer_acquisition_indices.size == 0:
+            return np.empty(shape=(n, m, s))
+
         result: NDArray[np.int_] = np.zeros(shape=(s, n, m), dtype=np.int_)
         for i, qubit_id in enumerate(self.involved_stabilizer_qubit_ids):
-            state_classifier: StateClassifierContainer = self._classifier_lookup[qubit_id]
-            state_classifier: StateClassifierContainer = StateClassifierContainer.reshape(
+            state_classifier: IStateClassifierContainer = self._classifier_lookup[qubit_id]
+            state_classifier: IStateClassifierContainer = state_classifier.reshape(
                 container=state_classifier,
                 index_slices=stabilizer_acquisition_indices,
             )
@@ -452,10 +460,10 @@ class ErrorDetectionIdentifier(IErrorDetectionIdentifier):
         # (N, M(+1), S) Iterate over involved stabilizers to convert from parity to defect
         result: NDArray[np.int_] = np.zeros(shape=parity_classification.shape, dtype=np.int_)
         for i, qubit_id in enumerate(self.involved_stabilizer_qubit_ids):
-            state_classifier: StateClassifierContainer = self._classifier_lookup[qubit_id]
+            state_classifier: IStateClassifierContainer = self._classifier_lookup[qubit_id]
             # (N, M(+1), 1)
             sub_parity_classification: NDArray[np.int_] = parity_classification[:, :, i]
-            sub_defect_classification: NDArray[np.int_] = StateClassifierContainer.calculate_defect(
+            sub_defect_classification: NDArray[np.int_] = IStateClassifierContainer.calculate_defect(
                 m=sub_parity_classification,
                 initial_condition=state_classifier.expected_parity.value,
             )
@@ -473,19 +481,12 @@ class ErrorDetectionIdentifier(IErrorDetectionIdentifier):
         """
         # Data allocation
         result: OrderedDict[IQubitID, NDArray[np.int_]] = OrderedDict()
+        defect_stabilizer_classification: NDArray[np.int_] = self.get_defect_stabilizer_classification(cycle_stabilizer_count=cycle_stabilizer_count)
 
-        for qubit_id in self.involved_stabilizer_qubit_ids:
+        for i, qubit_id in enumerate(self.involved_stabilizer_qubit_ids):
             # (Post selected) acquisition indices
-            stabilizer_acquisition_indices: NDArray[np.int_] = self._index_kernel.get_stabilizer_acquisition_indices(qubit_id=qubit_id, cycle_stabilizer_count=cycle_stabilizer_count)
-            post_selection_mask = self.get_post_selection_mask(cycle_stabilizer_count=cycle_stabilizer_count)
-            stabilizer_acquisition_indices = stabilizer_acquisition_indices[post_selection_mask]
-
-            state_classifier: StateClassifierContainer = self._classifier_lookup[qubit_id]
-            state_classifier: StateClassifierContainer = StateClassifierContainer.reshape(
-                container=state_classifier,
-                index_slices=stabilizer_acquisition_indices,
-            )
-            result[qubit_id] = StateClassifierContainer.eigenvalue_to_binary(state_classifier.get_defect_classification())
+            defect_slice: NDArray[np.int_] = defect_stabilizer_classification[:, :, i]
+            result[qubit_id] = IStateClassifierContainer.eigenvalue_to_binary(defect_slice)
         return result
 
     @lru_cache(maxsize=None)
@@ -507,8 +508,8 @@ class ErrorDetectionIdentifier(IErrorDetectionIdentifier):
         d: int = len(self.involved_data_qubit_ids)
         result: NDArray[np.int_] = np.zeros(shape=(d, n, one), dtype=np.int_)
         for i, qubit_id in enumerate(self.involved_data_qubit_ids):
-            state_classifier: StateClassifierContainer = self._classifier_lookup[qubit_id]
-            state_classifier: StateClassifierContainer = StateClassifierContainer.reshape(
+            state_classifier: IStateClassifierContainer = self._classifier_lookup[qubit_id]
+            state_classifier: IStateClassifierContainer = state_classifier.reshape(
                 container=state_classifier,
                 index_slices=projected_acquisition_indices,
             )
@@ -536,8 +537,8 @@ class ErrorDetectionIdentifier(IErrorDetectionIdentifier):
         d: int = len(self.involved_data_qubit_ids)
         result: NDArray[np.int_] = np.zeros(shape=(d, n, one), dtype=np.int_)
         for i, qubit_id in enumerate(self.involved_data_qubit_ids):
-            state_classifier: StateClassifierContainer = self._classifier_lookup[qubit_id]
-            state_classifier: StateClassifierContainer = StateClassifierContainer.reshape(
+            state_classifier: IStateClassifierContainer = self._classifier_lookup[qubit_id]
+            state_classifier: IStateClassifierContainer = state_classifier.reshape(
                 container=state_classifier,
                 index_slices=projected_acquisition_indices,
             )
@@ -565,9 +566,9 @@ class ErrorDetectionIdentifier(IErrorDetectionIdentifier):
         # (P, N, M) Binary classification of heralded acquisition
         heralded_binary_tensor: np.ndarray = np.zeros(index_slices.shape, dtype=np.int_)
         for i, qubit_id in enumerate(self.involved_qubit_ids):
-            state_classifier: StateClassifierContainer = self._classifier_lookup[qubit_id]
+            state_classifier: IStateClassifierContainer = self._classifier_lookup[qubit_id]
             index_sub_slices: NDArray[np.int_] = index_slices[i]
-            reshaped_container: StateClassifierContainer = StateClassifierContainer.reshape(
+            reshaped_container: IStateClassifierContainer = state_classifier.reshape(
                 container=state_classifier,
                 index_slices=index_sub_slices,
             )
@@ -597,9 +598,9 @@ class ErrorDetectionIdentifier(IErrorDetectionIdentifier):
         # (D, N, 1) Ternary classification of projected acquisition
         projected_ternary_tensor: np.ndarray = np.zeros(index_slices.shape, dtype=np.int_)
         for i, qubit_id in enumerate(self.involved_data_qubit_ids):
-            state_classifier: StateClassifierContainer = self._classifier_lookup[qubit_id]
+            state_classifier: IStateClassifierContainer = self._classifier_lookup[qubit_id]
             index_sub_slices: NDArray[np.int_] = index_slices[i]
-            reshaped_container: StateClassifierContainer = StateClassifierContainer.reshape(
+            reshaped_container: IStateClassifierContainer = state_classifier.reshape(
                 container=state_classifier,
                 index_slices=index_sub_slices,
             )
@@ -622,16 +623,16 @@ class ErrorDetectionIdentifier(IErrorDetectionIdentifier):
         """
         # (S, N, M) Projected acquisition index slices
         index_slices: NDArray[np.int_] = np.asarray([
-            self._index_kernel.get_stabilizer_acquisition_indices(qubit_id=qubit_id,
+            self._index_kernel.get_stabilizer_and_projected_cycle_acquisition_indices(qubit_id=qubit_id,
                                                                   cycle_stabilizer_count=cycle_stabilizer_count)
             for qubit_id in self.involved_stabilizer_qubit_ids
         ])
         # (S, N, M) Ternary classification of projected acquisition
         stabilizer_ternary_tensor: np.ndarray = np.zeros(index_slices.shape, dtype=np.int_)
         for i, qubit_id in enumerate(self.involved_stabilizer_qubit_ids):
-            state_classifier: StateClassifierContainer = self._classifier_lookup[qubit_id]
+            state_classifier: IStateClassifierContainer = self._classifier_lookup[qubit_id]
             index_sub_slices: NDArray[np.int_] = index_slices[i]
-            reshaped_container: StateClassifierContainer = StateClassifierContainer.reshape(
+            reshaped_container: IStateClassifierContainer = state_classifier.reshape(
                 container=state_classifier,
                 index_slices=index_sub_slices,
             )

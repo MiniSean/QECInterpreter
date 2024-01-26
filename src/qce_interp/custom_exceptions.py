@@ -13,3 +13,9 @@ class ElementNotIncludedException(Exception):
     """
     Raised when element (such as IQubitID, IEdgeID or IFeedlineID) is not included in the connectivity layer.
     """
+
+
+class QECCycleNotIncludedException(Exception):
+    """
+    Raised when requested QEC-cycle is not included in the data.
+    """
