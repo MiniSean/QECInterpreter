@@ -73,6 +73,17 @@ class IErrorDetectionIdentifier(ABC):
         raise InterfaceMethodException
 
     @abstractmethod
+    def get_binary_stabilizer_classification(self, cycle_stabilizer_count: int) -> NDArray[np.int_]:
+        """
+        Output shape: (N, M, S)
+        - N is the number of measurement repetitions.
+        - M is the number of stabilizer repetitions.
+        - S is the number of stabilizer qubits.
+        :return: Tensor of binary-classification at specific cycle.
+        """
+        raise InterfaceMethodException
+
+    @abstractmethod
     def get_parity_stabilizer_classification(self, cycle_stabilizer_count: int) -> NDArray[np.int_]:
         """
         Output shape: (N, M, S)
@@ -154,6 +165,16 @@ class ILabeledErrorDetectionIdentifier(IErrorDetectionIdentifier, metaclass=ABCM
 
         :param cycle_stabilizer_count: int, the count of stabilizer cycles
         :return: xarray.DataArray with dimensions 'measurement', 'binary_value', and 'qubit_id'.
+        """
+        raise InterfaceMethodException
+
+    @abstractmethod
+    def get_labeled_binary_stabilizer_classification(self, cycle_stabilizer_count: int) -> NDArray[np.int_]:
+        """
+        Retrieves binary classification data for stabilizer qubits in a labeled, structured format.
+
+        :param cycle_stabilizer_count: int, the count of stabilizer cycles
+        :return: xarray.DataArray with dimensions 'measurement', 'stabilizer_repetition', and 'qubit_id'.
         """
         raise InterfaceMethodException
 
@@ -783,6 +804,51 @@ class LabeledErrorDetectionIdentifier(ILabeledErrorDetectionIdentifier):
             dims=[
                 DataArrayLabels.MEASUREMENT.value,
                 DataArrayLabels.BINARY_VALUE.value,
+                DataArrayLabels.QUBIT_ID.value,
+            ],
+        )
+
+        return data_array
+
+    def get_binary_stabilizer_classification(self, cycle_stabilizer_count: int) -> NDArray[np.int_]:
+        """
+        Output shape: (N, M, S)
+        - N is the number of measurement repetitions.
+        - M is the number of stabilizer repetitions.
+        - S is the number of stabilizer qubits.
+        :return: Tensor of binary-classification at specific cycle.
+        """
+        return self._error_detection_identifier.get_binary_stabilizer_classification(
+            cycle_stabilizer_count=cycle_stabilizer_count,
+        )
+
+    def get_labeled_binary_stabilizer_classification(self, cycle_stabilizer_count: int) -> NDArray[np.int_]:
+        """
+        Retrieves binary classification data for stabilizer qubits in a labeled, structured format.
+
+        :param cycle_stabilizer_count: int, the count of stabilizer cycles
+        :return: xarray.DataArray with dimensions 'measurement', 'stabilizer_repetition', and 'qubit_id'.
+        """
+        # (N, M, S) Transpose
+        result: NDArray[np.int_] = self.get_binary_stabilizer_classification(
+            cycle_stabilizer_count=cycle_stabilizer_count
+        )
+        n, m, s = result.shape
+
+        measurements = range(n)
+        stabilizer_repetitions = range(m)
+        qubit_ids = [qubit_id.id for qubit_id in self.involved_stabilizer_qubit_ids]
+
+        data_array = DataArray(
+            result,
+            coords={
+                DataArrayLabels.MEASUREMENT.value: measurements,
+                DataArrayLabels.STABILIZER_REPETITION.value: stabilizer_repetitions,
+                DataArrayLabels.QUBIT_ID.value: qubit_ids,
+            },
+            dims=[
+                DataArrayLabels.MEASUREMENT.value,
+                DataArrayLabels.STABILIZER_REPETITION.value,
                 DataArrayLabels.QUBIT_ID.value,
             ],
         )
