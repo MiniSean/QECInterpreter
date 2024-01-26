@@ -460,19 +460,25 @@ class ErrorDetectionIdentifier(IErrorDetectionIdentifier):
         """
         # Data allocation
         result: OrderedDict[IQubitID, NDArray[np.int_]] = OrderedDict()
+        defect_stabilizer_classification: NDArray[np.int_] = self.get_defect_stabilizer_classification(cycle_stabilizer_count=cycle_stabilizer_count)
 
-        for qubit_id in self.involved_stabilizer_qubit_ids:
+        for i, qubit_id in enumerate(self.involved_stabilizer_qubit_ids):
             # (Post selected) acquisition indices
-            stabilizer_acquisition_indices: NDArray[np.int_] = self._index_kernel.get_stabilizer_acquisition_indices(qubit_id=qubit_id, cycle_stabilizer_count=cycle_stabilizer_count)
-            post_selection_mask = self.get_post_selection_mask(cycle_stabilizer_count=cycle_stabilizer_count)
-            stabilizer_acquisition_indices = stabilizer_acquisition_indices[post_selection_mask]
+            defect_slice: NDArray[np.int_] = defect_stabilizer_classification[:, :, i]
+            result[qubit_id] = IStateClassifierContainer.eigenvalue_to_binary(defect_slice)
 
-            state_classifier: IStateClassifierContainer = self._classifier_lookup[qubit_id]
-            state_classifier: IStateClassifierContainer = state_classifier.reshape(
-                container=state_classifier,
-                index_slices=stabilizer_acquisition_indices,
-            )
-            result[qubit_id] = IStateClassifierContainer.eigenvalue_to_binary(state_classifier.get_defect_classification())
+        # for i, qubit_id in enumerate(self.involved_stabilizer_qubit_ids):
+        #     # (Post selected) acquisition indices
+        #     stabilizer_acquisition_indices: NDArray[np.int_] = self._index_kernel.get_stabilizer_acquisition_indices(qubit_id=qubit_id, cycle_stabilizer_count=cycle_stabilizer_count)
+        #     post_selection_mask = self.get_post_selection_mask(cycle_stabilizer_count=cycle_stabilizer_count)
+        #     stabilizer_acquisition_indices = stabilizer_acquisition_indices[post_selection_mask]
+        #
+        #     state_classifier: IStateClassifierContainer = self._classifier_lookup[qubit_id]
+        #     state_classifier: IStateClassifierContainer = state_classifier.reshape(
+        #         container=state_classifier,
+        #         index_slices=stabilizer_acquisition_indices,
+        #     )
+        #     result[qubit_id] = IStateClassifierContainer.eigenvalue_to_binary(state_classifier.get_defect_classification())
         return result
 
     @lru_cache(maxsize=None)
