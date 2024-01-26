@@ -1,5 +1,4 @@
-# QECInterpreter
-Contains functionality for reading, interpreting and processing experimental quantum error correction data.
+# QEC Interpreter
 
 Repetition-5 Example
 ===
@@ -35,7 +34,7 @@ Note: reading a large .hdf5 file might take a few minutes. (approx. 2 minutes fo
 ```python
 data_manager: DataManager = DataManager.from_file_path(
     file_path=example_file_path,
-    rounds=list(range(1, 5 + 1)),
+    rounds=list(range(0, 8 + 1)),
     heralded_initialization=True,
     qutrit_calibration_points=True,
     involved_data_qubit_ids=[QubitIDObj('D7'), QubitIDObj('D4'), QubitIDObj('D5'), QubitIDObj('D6'), QubitIDObj('D3')],
@@ -50,7 +49,7 @@ data_manager: DataManager = DataManager.from_file_path(
 )
 ```
 
-    Processing data file: 100%|██████████| 9/9 [00:04<00:00,  2.12it/s]
+    Processing data file: 100%|██████████| 9/9 [00:00<00:00, 47.01it/s]
     
 
 Construct Error Detection Identifier
@@ -109,6 +108,40 @@ Lets use this framework to visualize some commong metrics
 
 
 ```python
+from qce_interp import StateAcquisitionContainer
+from qce_interp.visualization import plot_state_classification
+
+qubit_id = QubitIDObj('Z1')
+state_classifier: StateAcquisitionContainer = data_manager.get_state_acquisition(qubit_id=qubit_id)
+fig, ax = plot_state_classification(state_classifier=state_classifier)
+ax.set_title(f'IQ plot qubit {qubit_id.id}')
+```
+
+
+
+    
+![png](data/examples_files/examples_10_1.png)
+    
+
+
+
+```python
+from qce_interp.visualization import plot_all_defect_rate
+
+plot_all_defect_rate(
+    error_identifier,
+    included_rounds=data_manager.rounds[-1],
+)
+```
+
+
+    
+![png](data/examples_files/examples_11_1.png)
+    
+
+
+
+```python
 from qce_interp.visualization import plot_state_evolution
 
 plot_state_evolution(
@@ -118,7 +151,11 @@ plot_state_evolution(
 )
 ```
 
-![png](data/examples_files/examples_10_1.png)
+    
+![png](data/examples_files/examples_12_1.png)
+    
+
+
 
 ```python
 from qce_interp.visualization import plot_pij_matrix
@@ -128,20 +165,12 @@ plot_pij_matrix(
     included_rounds=data_manager.rounds,
 )
 ```
-  
-![png](data/examples_files/examples_11_1.png)
- 
-```python
-from qce_interp import StateAcquisitionContainer
-from qce_interp.visualization import plot_state_classification
 
-qubit_id = QubitIDObj('Z1')
-state_classifier: StateAcquisitionContainer = data_manager.get_state_acquisition(qubit_id=qubit_id)
-fig, ax = plot_state_classification(state_classifier=state_classifier)
-ax.set_title(f'IQ plot qubit {qubit_id.id}')
-```
- 
-![png](data/examples_files/examples_12_1.png)
+
+    
+![png](data/examples_files/examples_13_2.png)
+    
+
 
 ## Quick Setup Guide
 
@@ -189,3 +218,5 @@ jupyter notebook
 ```
 3. Your default web browser should open with the Jupyter interface. Navigate to  `QECInterpreter\src\qce_interp\examples.ipynb` file and open it.
 4. Run the notebook cells as needed.
+
+
