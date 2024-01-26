@@ -14,7 +14,7 @@ from qce_interp.utilities.readwrite_hdf5 import (
     SpecType,
 )
 from qce_interp.interface_definitions.intrf_channel_identifier import IQubitID
-from qce_interp.utilities.kernel_repetition_code import (
+from qce_circuit.structure.acquisition_indexing.kernel_repetition_code import (
     RepetitionExperimentKernel,
     IStabilizerIndexingKernel,
 )

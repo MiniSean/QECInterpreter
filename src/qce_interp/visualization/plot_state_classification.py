@@ -31,6 +31,11 @@ STATE_COLORMAP: Dict[StateKey, LinearSegmentedColormap] = {
     StateKey.STATE_1: colormaps.get_cmap("Reds"),
     StateKey.STATE_2: colormaps.get_cmap("Greens"),
 }
+STATE_LABELMAP: Dict[StateKey, str] = {
+    StateKey.STATE_0: 'ground',
+    StateKey.STATE_1: 'excited',
+    StateKey.STATE_2: '$2^\mathrm{nd}$ excited',
+}
 
 
 @unique
@@ -104,7 +109,16 @@ def plot_state_shots(state_classifier: StateAcquisitionContainer, **kwargs) -> I
             mincnt=mincnt,
             extent=extent,
             norm=PowerNorm(gamma=power_gamma),
-            zorder=-state.value
+            zorder=-state.value,
+        )
+        # For legend only
+        ax.plot(
+            np.nan,
+            np.nan,
+            linestyle='none',
+            marker='o',
+            color=STATE_COLORMAP[state](0.5),
+            label=STATE_LABELMAP[state],
         )
     return fig, ax
 
@@ -355,4 +369,5 @@ def plot_state_classification(state_classifier: StateAcquisitionContainer, **kwa
     plot_state_shots(state_classifier=state_classifier, **kwargs)
     plot_decision_boundary(decision_boundaries=decision_boundaries, **kwargs)
     fig, ax = plot_decision_region(state_classifier=state_classifier, **kwargs)
+    ax.legend(frameon=False)
     return fig, ax

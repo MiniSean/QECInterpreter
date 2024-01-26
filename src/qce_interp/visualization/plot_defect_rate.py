@@ -61,3 +61,24 @@ def plot_defect_rate(error_identifier: IErrorDetectionIdentifier, qubit_id: IQub
     ax.set_xlim([-0.5, data_array.coords[DataArrayLabels.STABILIZER_REPETITION.value].max() + 1])
     ax.legend(loc='upper left', bbox_to_anchor=(1, 1))
     return fig, ax
+
+
+def plot_all_defect_rate(error_identifier: IErrorDetectionIdentifier, included_rounds: int, **kwargs) -> IFigureAxesPair:
+    """
+    :param error_identifier: Instance that identifiers errors.
+    :param qubit_id: Qubit identifier for which the defects are plotted.
+    :param included_rounds: Integer number of qec cycles that should be included in the defect plot.
+    :param kwargs: Key-word arguments that are passed to plt.subplots() method.
+    :return: Tuple of Figure and Axes pair.
+    """
+    # Data allocation
+    fig, ax = construct_subplot()
+    for qubit_id in error_identifier.involved_stabilizer_qubit_ids:
+        kwargs[SubplotKeywordEnum.HOST_AXES.value] = (fig, ax)
+        fig, ax = plot_defect_rate(
+            error_identifier,
+            qubit_id,
+            qec_cycles=included_rounds,
+            **kwargs,
+        )
+    return fig, ax
