@@ -9,7 +9,7 @@ from numpy.typing import NDArray
 from typing import List, Dict
 from xarray import DataArray
 from enum import Enum, unique
-from qce_interp.custom_exceptions import InterfaceMethodException
+from qce_interp.utilities.custom_exceptions import InterfaceMethodException
 from qce_interp.interface_definitions.intrf_channel_identifier import IQubitID
 from qce_interp.interface_definitions.intrf_connectivity_surface_code import ISurfaceCodeLayer
 from qce_interp.interface_definitions.intrf_stabilizer_index_kernel import IStabilizerIndexingKernel

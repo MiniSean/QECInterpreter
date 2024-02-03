@@ -9,7 +9,7 @@ import numpy as np
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from numpy.typing import NDArray
 from typing import List, Dict, Optional, Callable, TypeVar
-from qce_interp.custom_exceptions import InterfaceMethodException
+from qce_interp.utilities.custom_exceptions import InterfaceMethodException
 from qce_interp.utilities.geometric_definitions import Vec2D
 from qce_circuit.structure.acquisition_indexing.intrf_stabilizer_index_kernel import StateKey
 

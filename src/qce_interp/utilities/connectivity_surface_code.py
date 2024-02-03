@@ -4,7 +4,7 @@
 from dataclasses import dataclass, field
 from typing import List, Union, Dict
 from qce_interp.definitions import SingletonABCMeta
-from qce_interp.custom_exceptions import ElementNotIncludedException
+from qce_interp.utilities.custom_exceptions import ElementNotIncludedException
 from qce_interp.interface_definitions.intrf_channel_identifier import (
     IFeedlineID,
     IQubitID,

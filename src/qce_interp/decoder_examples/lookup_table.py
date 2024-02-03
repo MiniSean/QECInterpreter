@@ -8,7 +8,7 @@ import numpy as np
 from numpy.typing import NDArray
 from xarray import DataArray
 from typing import Dict, List
-from qce_interp.custom_exceptions import InterfaceMethodException
+from qce_interp.utilities.custom_exceptions import InterfaceMethodException
 from qce_interp.interface_definitions.intrf_channel_identifier import IQubitID
 from qce_interp.interface_definitions.intrf_error_identifier import (
     IErrorDetectionIdentifier,
