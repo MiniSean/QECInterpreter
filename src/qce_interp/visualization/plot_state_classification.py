@@ -21,15 +21,15 @@ from qce_interp.visualization.plotting_functionality import (
 )
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
-from matplotlib.colors import LinearSegmentedColormap, ListedColormap, PowerNorm
-from matplotlib import colormaps
+from matplotlib.colors import ListedColormap, PowerNorm, Colormap
+from matplotlib import cm
 from matplotlib import patches
 
 
-STATE_COLORMAP: Dict[StateKey, LinearSegmentedColormap] = {
-    StateKey.STATE_0: colormaps.get_cmap("Blues"),
-    StateKey.STATE_1: colormaps.get_cmap("Reds"),
-    StateKey.STATE_2: colormaps.get_cmap("Greens"),
+STATE_COLORMAP: Dict[StateKey, Colormap] = {
+    StateKey.STATE_0: cm.get_cmap("Blues"),
+    StateKey.STATE_1: cm.get_cmap("Reds"),
+    StateKey.STATE_2: cm.get_cmap("Greens"),
 }
 STATE_LABELMAP: Dict[StateKey, str] = {
     StateKey.STATE_0: 'ground',
