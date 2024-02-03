@@ -14,6 +14,7 @@ from qce_interp.utilities.readwrite_hdf5 import (
     SpecType,
 )
 from qce_interp.interface_definitions.intrf_channel_identifier import IQubitID
+from qce_interp.interface_definitions.intrf_data_manager import IDataManager
 from qce_circuit.structure.acquisition_indexing.kernel_repetition_code import (
     RepetitionExperimentKernel,
     IStabilizerIndexingKernel,
@@ -28,7 +29,6 @@ from qce_interp.interface_definitions.intrf_state_classification import (
 )
 from qce_interp.interface_definitions.intrf_connectivity_surface_code import ISurfaceCodeLayer
 from qce_interp.interface_definitions.intrf_error_identifier import (
-    LabeledErrorDetectionIdentifier,
     ErrorDetectionIdentifier,
 )
 
@@ -41,7 +41,7 @@ class AcquisitionChannelIdentifier:
     channel_index_q: int
 
 
-class DataManager:
+class DataManager(IDataManager):
     """
     Behaviour class, constructs data entrypoints based on provided measurement data.
     Currently, a bit of a loaded class as it is responsible for constructing (Labeled)ErrorDetectionIdentifier
@@ -51,22 +51,27 @@ class DataManager:
     # region Class Properties
     @property
     def involved_qubit_ids(self) -> List[IQubitID]:
+        """:return: Array-like of involved qubit-ID's."""
         return self._involved_qubit_ids
 
     @property
     def involved_ancilla_qubit_ids(self) -> List[IQubitID]:
+        """:return: Array-like of involved ancilla qubit-ID's."""
         return [qubit_id for qubit_id in self.involved_qubit_ids if qubit_id in self._device_layout.ancilla_qubit_ids]
 
     @property
     def involved_data_qubit_ids(self) -> List[IQubitID]:
+        """:return: Array-like of involved data qubit-ID's."""
         return [qubit_id for qubit_id in self.involved_qubit_ids if qubit_id in self._device_layout.data_qubit_ids]
 
     @property
     def rounds(self) -> List[int]:
+        """:return: Array-like of number of QEC-rounds per experiment."""
         return self._cycle_stabilizer_counts
 
     @property
     def index_kernel(self) -> IStabilizerIndexingKernel:
+        """:return: Index kernel used for indexing data."""
         return self._experiment_index_kernel
 
     @classmethod
@@ -108,16 +113,6 @@ class DataManager:
             involved_qubit_ids=self._involved_qubit_ids,
             device_layout=self._device_layout,
             **kwargs,
-        )
-
-    def get_labeled_error_detection_classifier(self, **kwargs) -> LabeledErrorDetectionIdentifier:
-        """
-        :param kwargs: Additional keyword arguments passed to class constructor.
-        :return: Instance that exposes high-level get-methods + xarray formatting,
-            which can be used to construct error decoders, Pij-matrix, etc.
-        """
-        return LabeledErrorDetectionIdentifier(
-            error_detection_identifier=self.get_error_detection_classifier(**kwargs),
         )
 
     def get_state_classifier(self, qubit_id: IQubitID) -> Optional[IStateClassifierContainer]:

@@ -10,6 +10,7 @@ multipledispatch
 coverage
 matplotlib
 pytest
+stim
 
 # Personal project dependencies
 # git+https://github.com/MiniSean/QCoCircuits.git

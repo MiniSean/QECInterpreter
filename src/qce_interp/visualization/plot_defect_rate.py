@@ -4,7 +4,7 @@
 import itertools
 import xarray as xr
 import matplotlib.pyplot as plt
-from qce_interp.utilities.connectivity_surface_code import IQubitID
+from qce_interp.interface_definitions.intrf_channel_identifier import IQubitID
 from qce_interp.interface_definitions.intrf_error_identifier import (
     IErrorDetectionIdentifier,
     DataArrayLabels,
