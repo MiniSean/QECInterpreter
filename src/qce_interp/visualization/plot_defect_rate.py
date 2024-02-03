@@ -72,7 +72,7 @@ def plot_all_defect_rate(error_identifier: IErrorDetectionIdentifier, included_r
     :return: Tuple of Figure and Axes pair.
     """
     # Data allocation
-    fig, ax = construct_subplot()
+    fig, ax = construct_subplot(**kwargs)
     for qubit_id in error_identifier.involved_stabilizer_qubit_ids:
         kwargs[SubplotKeywordEnum.HOST_AXES.value] = (fig, ax)
         fig, ax = plot_defect_rate(
