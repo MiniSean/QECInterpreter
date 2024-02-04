@@ -161,3 +161,6 @@ data/
 data/*
 
 *.yaml
+
+src/examples.md
+src/examples_files/*

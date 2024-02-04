@@ -3,8 +3,7 @@
 # -------------------------------------------
 import itertools
 import xarray as xr
-import matplotlib.pyplot as plt
-from qce_interp.utilities.connectivity_surface_code import IQubitID
+from qce_interp.interface_definitions.intrf_channel_identifier import IQubitID
 from qce_interp.interface_definitions.intrf_error_identifier import (
     IErrorDetectionIdentifier,
     DataArrayLabels,
@@ -66,7 +65,6 @@ def plot_defect_rate(error_identifier: IErrorDetectionIdentifier, qubit_id: IQub
 def plot_all_defect_rate(error_identifier: IErrorDetectionIdentifier, included_rounds: int, **kwargs) -> IFigureAxesPair:
     """
     :param error_identifier: Instance that identifiers errors.
-    :param qubit_id: Qubit identifier for which the defects are plotted.
     :param included_rounds: Integer number of qec cycles that should be included in the defect plot.
     :param kwargs: Key-word arguments that are passed to plt.subplots() method.
     :return: Tuple of Figure and Axes pair.
