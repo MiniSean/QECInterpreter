@@ -12,6 +12,15 @@ from qce_circuit.library.repetition_code_circuit import (
     construct_repetition_code_circuit,
 )
 from qce_circuit.addon_stim import to_stim
+from qce_circuit.addon_stim.intrf_noise_factory import (
+    IStimNoiseDresserFactory,
+    StimNoiseDresserFactoryManager,
+)
+from qce_circuit.addon_stim.noise_factory_manager import (
+    apply_noise,
+    NoiseFactoryManager,
+)
+from qce_circuit.addon_stim.noise_settings_manager import IndexedNoiseSettings
 from qce_interp.interface_definitions.intrf_channel_identifier import IQubitID
 from qce_interp.interface_definitions.intrf_data_manager import IDataManager
 from qce_circuit.structure.acquisition_indexing.kernel_repetition_code import (
@@ -30,6 +39,29 @@ from qce_interp.interface_definitions.intrf_error_identifier import (
 
 
 FILL_VALUE: float = np.nan
+
+
+class NoiselessFactoryManager(IStimNoiseDresserFactory):
+    """
+    Behaviour class, implementing IStimNoiseDresserFactory as an identity or noise-less factory.
+    """
+
+    # region Interface Properties
+    @property
+    def supported_factories(self) -> List[str]:
+        """:return: Array-like of supported factory types."""
+        return []
+    # endregion
+
+    # region Interface Methods
+    def construct(self, circuit: stim.Circuit, settings: IndexedNoiseSettings) -> stim.Circuit:
+        """:return: Noise dressed Stim circuit."""
+        return circuit
+
+    def contains(self, factory_key: str) -> bool:
+        """:return: Boolean, whether factory key is included in the manager."""
+        return False
+    # endregion
 
 
 class SimulatedDataManager(IDataManager):
@@ -103,7 +135,7 @@ class SimulatedDataManager(IDataManager):
         return self._classifier_lookup[qubit_id]
 
     @classmethod
-    def from_simulated_repetition_code(cls, rounds: List[int], involved_qubit_ids: List[IQubitID], initial_state: InitialStateContainer, device_layout: ISurfaceCodeLayer) -> 'SimulatedDataManager':
+    def from_simulated_repetition_code(cls, rounds: List[int], involved_qubit_ids: List[IQubitID], initial_state: InitialStateContainer, device_layout: ISurfaceCodeLayer, noise_factory: IStimNoiseDresserFactory = NoiselessFactoryManager()) -> 'SimulatedDataManager':
         """
         Constructs simulated data.
         Constructs experiment specific index kernel (This case repetition-code experiment).
@@ -119,6 +151,7 @@ class SimulatedDataManager(IDataManager):
         # Data allocation
         involved_data_qubit_ids = [qubit_id for qubit_id in involved_qubit_ids if qubit_id in device_layout.data_qubit_ids]
         involved_ancilla_qubit_ids = [qubit_id for qubit_id in involved_qubit_ids if qubit_id in device_layout.ancilla_qubit_ids]
+        qubit_index_map: Dict[int, IQubitID] = {i: qubit_id for i, qubit_id in enumerate(involved_qubit_ids)}
         experiment_repetitions: int = 10000
         experiment_index_kernel: RepetitionExperimentKernel = RepetitionExperimentKernel(
             rounds=rounds,
@@ -138,6 +171,8 @@ class SimulatedDataManager(IDataManager):
             nr_ancilla_qubits=len(involved_ancilla_qubit_ids),
             nr_data_qubits=len(involved_data_qubit_ids),
             experiment_repetitions=experiment_repetitions,
+            noise_factory=noise_factory,
+            qubit_index_map=qubit_index_map,
         )
         assert experiment_index_kernel.kernel_cycle_length == simulated_data.shape[1], f"Simulated cycle length and index-kernel cycle length should be equal by definition. Instead {experiment_index_kernel.kernel_cycle_length} != {simulated_data.shape[1]}"
 
@@ -226,9 +261,17 @@ class SimulatedDataManager(IDataManager):
         return result
 
     @staticmethod
-    def construct_simulated_repetition_code_data(initial_state: InitialStateContainer, qec_cycles: List[int], nr_ancilla_qubits: int, nr_data_qubits: int, experiment_repetitions: int) -> np.ndarray:
+    def construct_simulated_repetition_code_data(initial_state: InitialStateContainer, qec_cycles: List[int], nr_ancilla_qubits: int, nr_data_qubits: int, experiment_repetitions: int, noise_factory: IStimNoiseDresserFactory, qubit_index_map: Dict[int, IQubitID]) -> np.ndarray:
         """
         Output shape: (N, SUM(QEC-Rounds(+1)), P)
+        :param initial_state: Data structure containing an array-like of initial state enum's. Corresponds to qubit order.
+        :param qec_cycles: Array-like of integers describing the number of QEC cycle per sub-experiment.
+        :param nr_ancilla_qubits: Integer number of ancilla qubits present in repetition code. Used for simulation.
+        :param nr_data_qubits: Integer number of data qubits present in repetition code. Used for simulation.
+        :param experiment_repetitions: Integer number of experiment repetitions. Repeats all QEC-cycles that many times.
+        :param noise_factory: IStimNoiseDresserFactory instance that appends noise operations to stim.Circuit.
+        :param qubit_index_map: Dictionary lookup that maps stim.Circuit qubit-index to qubit-ID.
+            Used by noise settings manager to find the specific noise parameters for each qubit.
         :return: Formatted array that mimics real experiment.
         """
         result: List[np.ndarray] = []
@@ -238,8 +281,13 @@ class SimulatedDataManager(IDataManager):
                 qec_cycles=qec_cycle,
             )
             stim_circuit: stim.Circuit = to_stim(circuit_with_detectors)
+            noisy_stim_circuit: stim.Circuit = apply_noise(
+                circuit=stim_circuit,
+                qubit_index_map=qubit_index_map,
+                factory=noise_factory,
+            )
             result.append(SimulatedDataManager._construct_simulated_data(
-                stim_circuit=stim_circuit,
+                stim_circuit=noisy_stim_circuit,
                 qec_cycle=qec_cycle,
                 nr_ancilla_qubits=nr_ancilla_qubits,
                 nr_data_qubits=nr_data_qubits,
@@ -276,6 +324,7 @@ if __name__ == '__main__':
             InitialStateEnum.ZERO,
         ]),
         device_layout=Surface17Layer(),
+        noise_factory=NoiseFactoryManager(),
     )
     print(manager)
     plot_pij_matrix(
