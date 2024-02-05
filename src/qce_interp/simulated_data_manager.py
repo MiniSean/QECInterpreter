@@ -136,12 +136,12 @@ class SimulatedDataManager(IDataManager):
         return self._classifier_lookup[qubit_id]
 
     @classmethod
-    def from_simulated_repetition_code(cls, rounds: List[int], involved_qubit_ids: List[IQubitID], initial_state: InitialStateContainer, device_layout: ISurfaceCodeLayer, noise_factory: IStimNoiseDresserFactory = NoiselessFactoryManager()) -> 'SimulatedDataManager':
+    def from_simulated_repetition_code(cls, qec_rounds: List[int], involved_qubit_ids: List[IQubitID], initial_state: InitialStateContainer, device_layout: ISurfaceCodeLayer, noise_factory: IStimNoiseDresserFactory = NoiselessFactoryManager()) -> 'SimulatedDataManager':
         """
         Constructs simulated data.
         Constructs experiment specific index kernel (This case repetition-code experiment).
         Iterate through each qubit, construct state-classifier based on simulated data and initial pauli-frame.
-        :param rounds: Array-like of integers representing qec-rounds per sub-experiment.
+        :param qec_rounds: Array-like of integers representing qec-rounds per sub-experiment.
         :param involved_qubit_ids: Array-like of (ordered) qubit-ID's corresponding to repetition-code qubit string.
         :param initial_state: Array-like of initial state descriptors for each of the data qubits.
             (Assumes all ancilla qubits to start in 0)
@@ -155,7 +155,7 @@ class SimulatedDataManager(IDataManager):
         qubit_index_map: Dict[int, IQubitID] = {i: qubit_id for i, qubit_id in enumerate(involved_qubit_ids)}
         experiment_repetitions: int = 10000
         experiment_index_kernel: RepetitionExperimentKernel = RepetitionExperimentKernel(
-            rounds=rounds,
+            rounds=qec_rounds,
             heralded_initialization=True,
             qutrit_calibration_points=True,
             involved_data_qubit_ids=involved_data_qubit_ids,
@@ -168,7 +168,7 @@ class SimulatedDataManager(IDataManager):
         )
         simulated_data: np.ndarray = SimulatedDataManager.construct_simulated_repetition_code_data(
             initial_state=initial_state,
-            qec_cycles=rounds,
+            qec_cycles=qec_rounds,
             nr_ancilla_qubits=len(involved_ancilla_qubit_ids),
             nr_data_qubits=len(involved_data_qubit_ids),
             experiment_repetitions=experiment_repetitions,
@@ -190,7 +190,7 @@ class SimulatedDataManager(IDataManager):
             experiment_index_kernel=experiment_index_kernel,
             involved_qubit_ids=involved_qubit_ids,
             device_layout=device_layout,
-            qec_rounds=rounds,
+            qec_rounds=qec_rounds,
         )
     # endregion
 
@@ -315,7 +315,7 @@ if __name__ == '__main__':
     import matplotlib.pyplot as plt
 
     manager = SimulatedDataManager.from_simulated_repetition_code(
-        rounds=[1, 2, 3, 4, 5],
+        qec_rounds=[1, 2, 3, 4, 5],
         involved_qubit_ids=[QubitIDObj('D7'), QubitIDObj('Z3'), QubitIDObj('D4'), QubitIDObj('Z1'), QubitIDObj('D5'), QubitIDObj('Z4'), QubitIDObj('D6'), QubitIDObj('Z2'), QubitIDObj('D3')],
         initial_state=InitialStateContainer.from_ordered_list([
             InitialStateEnum.ZERO,

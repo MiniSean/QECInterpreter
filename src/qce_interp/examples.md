@@ -30,19 +30,18 @@ This class is responsible to construct the experiment index kernel based on meta
 
 Note: reading a large .hdf5 file might take a few minutes. (approx. 2 minutes for 6Gb file)
 
-
 ```python
 data_manager: DataManager = DataManager.from_file_path(
     file_path=example_file_path,
-    rounds=list(range(0, 8 + 1)),
+    qec_rounds=list(range(0, 8 + 1)),
     heralded_initialization=True,
     qutrit_calibration_points=True,
     involved_data_qubit_ids=[QubitIDObj('D7'), QubitIDObj('D4'), QubitIDObj('D5'), QubitIDObj('D6'), QubitIDObj('D3')],
     involved_ancilla_qubit_ids=[QubitIDObj('Z3'), QubitIDObj('Z1'), QubitIDObj('Z4'), QubitIDObj('Z2')],
     expected_parity_lookup={
         QubitIDObj('Z3'): ParityType.ODD,
-        QubitIDObj('Z1'): ParityType.ODD, 
-        QubitIDObj('Z4'): ParityType.ODD, 
+        QubitIDObj('Z1'): ParityType.ODD,
+        QubitIDObj('Z4'): ParityType.ODD,
         QubitIDObj('Z2'): ParityType.ODD,
     },
     device_layout=Surface17Layer(),

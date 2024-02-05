@@ -34,14 +34,14 @@ class SimulatedDataManagerTestCase(unittest.TestCase):
             InitialStateEnum.ZERO,
         ])
         cls.manager_noiseless = SimulatedDataManager.from_simulated_repetition_code(
-            rounds=rounds,
+            qec_rounds=rounds,
             involved_qubit_ids=involved_qubit_ids,
             initial_state=initial_state,
             device_layout=Surface17Layer(),
             noise_factory=NoiselessFactoryManager(),
         )
         cls.manager_noisy = SimulatedDataManager.from_simulated_repetition_code(
-            rounds=rounds,
+            qec_rounds=rounds,
             involved_qubit_ids=involved_qubit_ids,
             initial_state=initial_state,
             device_layout=Surface17Layer(),

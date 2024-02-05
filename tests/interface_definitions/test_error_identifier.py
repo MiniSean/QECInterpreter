@@ -86,7 +86,7 @@ class ErrorDetectionIdentifierTestCase(unittest.TestCase):
         cls.off_target_state: np.ndarray = np.asarray([1, 0, 1, 0, 1])
         cls.data_manager: DataManager = DataManager.from_file_path(
             file_path=file_path,
-            rounds=list(range(0, 8 + 1)),  # [1, 5, 10, 15],
+            qec_rounds=list(range(0, 8 + 1)),  # [1, 5, 10, 15],
             heralded_initialization=True,
             qutrit_calibration_points=True,
             involved_data_qubit_ids=[
