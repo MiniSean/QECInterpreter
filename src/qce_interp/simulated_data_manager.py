@@ -88,7 +88,7 @@ class SimulatedDataManager(IDataManager):
         return [qubit_id for qubit_id in self.involved_qubit_ids if qubit_id in self._device_layout.data_qubit_ids]
 
     @property
-    def rounds(self) -> List[int]:
+    def qec_rounds(self) -> List[int]:
         """:return: Array-like of number of QEC-rounds per experiment."""
         return self._cycle_stabilizer_counts
 
@@ -105,13 +105,13 @@ class SimulatedDataManager(IDataManager):
             experiment_index_kernel: IStabilizerIndexingKernel,
             involved_qubit_ids: List[IQubitID],
             device_layout: ISurfaceCodeLayer,
-            cycle_stabilizer_counts: List[int],
+            qec_rounds: List[int],
     ) -> None:
         self._classifier_lookup: Dict[IQubitID, IStateClassifierContainer] = classifier_lookup
         self._experiment_index_kernel: IStabilizerIndexingKernel = experiment_index_kernel
         self._involved_qubit_ids: List[IQubitID] = involved_qubit_ids
         self._device_layout: ISurfaceCodeLayer = device_layout
-        self._cycle_stabilizer_counts: List[int] = cycle_stabilizer_counts
+        self._cycle_stabilizer_counts: List[int] = qec_rounds
     # endregion
 
     # region Class Methods
@@ -125,6 +125,7 @@ class SimulatedDataManager(IDataManager):
             index_kernel=self._experiment_index_kernel,
             involved_qubit_ids=self._involved_qubit_ids,
             device_layout=self._device_layout,
+            qec_rounds=self.qec_rounds,
             **kwargs,
         )
 
@@ -189,7 +190,7 @@ class SimulatedDataManager(IDataManager):
             experiment_index_kernel=experiment_index_kernel,
             involved_qubit_ids=involved_qubit_ids,
             device_layout=device_layout,
-            cycle_stabilizer_counts=rounds,
+            qec_rounds=rounds,
         )
     # endregion
 
@@ -332,6 +333,6 @@ if __name__ == '__main__':
             use_heralded_post_selection=True,
             use_computational_parity=True,
         ),
-        included_rounds=manager.rounds,
+        included_rounds=manager.qec_rounds,
     )
     plt.show()

@@ -66,11 +66,11 @@ class SimulatedDataManagerTestCase(unittest.TestCase):
         )
         plot_all_defect_rate(
             error_identifier_noiseless,
-            included_rounds=self.manager_noiseless.rounds[-1],
+            included_rounds=self.manager_noiseless.qec_rounds[-1],
         )
         plot_all_defect_rate(
             error_identifier_noisy,
-            included_rounds=self.manager_noisy.rounds[-1],
+            included_rounds=self.manager_noisy.qec_rounds[-1],
         )
         self.assertTrue(True)
 
@@ -86,11 +86,11 @@ class SimulatedDataManagerTestCase(unittest.TestCase):
         )
         plot_pij_matrix(
             error_identifier_noiseless,
-            included_rounds=self.manager_noiseless.rounds,
+            included_rounds=self.manager_noiseless.qec_rounds,
         )
         plot_pij_matrix(
             error_identifier_noisy,
-            included_rounds=self.manager_noisy.rounds,
+            included_rounds=self.manager_noisy.qec_rounds,
         )
         self.assertTrue(True)
     # endregion

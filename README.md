@@ -121,25 +121,19 @@ ax.set_title(f'IQ plot qubit {qubit_id.id}')
 
     
 ![png](data/examples_files/examples_10_1.png)
-    
-
-
 
 ```python
 from qce_interp.visualization import plot_all_defect_rate
 
 plot_all_defect_rate(
     error_identifier,
-    included_rounds=data_manager.rounds[-1],
+    included_rounds=data_manager.qec_rounds[-1],
 )
 ```
 
 
     
 ![png](data/examples_files/examples_11_1.png)
-    
-
-
 
 ```python
 from qce_interp.visualization import plot_state_evolution
@@ -147,22 +141,19 @@ from qce_interp.visualization import plot_state_evolution
 plot_state_evolution(
     syndrome_decoder=decoder,
     target_state=[0, 1, 0, 1, 0],
-    included_rounds=data_manager.rounds,
+    included_rounds=data_manager.qec_rounds,
 )
 ```
 
     
 ![png](data/examples_files/examples_12_1.png)
-    
-
-
 
 ```python
 from qce_interp.visualization import plot_pij_matrix
 
 plot_pij_matrix(
     error_identifier=error_identifier,
-    included_rounds=data_manager.rounds,
+    included_rounds=data_manager.qec_rounds,
 )
 ```
 
