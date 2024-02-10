@@ -7,9 +7,9 @@ import numpy as np
 from numpy.typing import NDArray
 from xarray import DataArray
 from typing import List
-from qce_interp.custom_exceptions import InterfaceMethodException
+from qce_interp.utilities.custom_exceptions import InterfaceMethodException
 from qce_interp.interface_definitions.intrf_channel_identifier import IQubitID
-from qce_interp.interface_definitions.intrf_state_classification import StateClassifierContainer
+from qce_interp.interface_definitions.intrf_state_classification import IStateClassifierContainer
 
 
 class IDecoder(metaclass=ABCMeta):
@@ -105,12 +105,12 @@ class ISyndromeDecoder(IDecoder, metaclass=ABCMeta):
         syndrome_corrections: NDArray[np.int_] = self.get_binary_syndrome_corrections(cycle_stabilizer_count=cycle_stabilizer_count)
         n, m, d = syndrome_corrections.shape
         # Pre-process
-        eigenvalue_syndrome_corrections = StateClassifierContainer.binary_to_eigenvalue(syndrome_corrections)
+        eigenvalue_syndrome_corrections = IStateClassifierContainer.binary_to_eigenvalue(syndrome_corrections)
         # (N, 1, D)
         eigenvalue_syndrome_correction: np.ndarray = np.prod(eigenvalue_syndrome_corrections, axis=1)  # Along 'M + 1' axis
         eigenvalue_syndrome_correction = eigenvalue_syndrome_correction.reshape((n, 1, d))
         # Post-process
-        syndrome_correction = StateClassifierContainer.eigenvalue_to_binary(eigenvalue_syndrome_correction)
+        syndrome_correction = IStateClassifierContainer.eigenvalue_to_binary(eigenvalue_syndrome_correction)
         return syndrome_correction
     # endregion
 

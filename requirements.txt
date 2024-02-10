@@ -9,7 +9,11 @@ scikit-learn
 multipledispatch
 coverage
 matplotlib
+pytest
 
 # 3rd party libraries
 pymatching
 stim
+
+# Personal project dependencies
+# git+https://github.com/MiniSean/QCoCircuits.git

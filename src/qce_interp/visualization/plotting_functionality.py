@@ -6,7 +6,7 @@ from collections.abc import Iterable as ABCIterable
 from typing import Callable, Tuple, Optional, Iterable, List
 import matplotlib.pyplot as plt
 from enum import Enum
-from qce_interp.custom_exceptions import InterfaceMethodException
+from qce_interp.utilities.custom_exceptions import InterfaceMethodException
 
 IFigureAxesPair = Tuple[plt.Figure, plt.Axes]
 KEYWORD_LABEL_FORMAT = 'label_format'

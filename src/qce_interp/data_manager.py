@@ -14,7 +14,8 @@ from qce_interp.utilities.readwrite_hdf5 import (
     SpecType,
 )
 from qce_interp.interface_definitions.intrf_channel_identifier import IQubitID
-from qce_interp.utilities.kernel_repetition_code import (
+from qce_interp.interface_definitions.intrf_data_manager import IDataManager
+from qce_circuit.structure.acquisition_indexing.kernel_repetition_code import (
     RepetitionExperimentKernel,
     IStabilizerIndexingKernel,
 )
@@ -22,12 +23,12 @@ from qce_interp.interface_definitions.intrf_state_classification import (
     StateKey,
     StateAcquisition,
     StateAcquisitionContainer,
-    StateClassifierContainer,
+    IStateClassifierContainer,
+    ShotsClassifierContainer,
     ParityType,
 )
 from qce_interp.interface_definitions.intrf_connectivity_surface_code import ISurfaceCodeLayer
 from qce_interp.interface_definitions.intrf_error_identifier import (
-    LabeledErrorDetectionIdentifier,
     ErrorDetectionIdentifier,
 )
 
@@ -40,7 +41,7 @@ class AcquisitionChannelIdentifier:
     channel_index_q: int
 
 
-class DataManager:
+class DataManager(IDataManager):
     """
     Behaviour class, constructs data entrypoints based on provided measurement data.
     Currently, a bit of a loaded class as it is responsible for constructing (Labeled)ErrorDetectionIdentifier
@@ -50,22 +51,27 @@ class DataManager:
     # region Class Properties
     @property
     def involved_qubit_ids(self) -> List[IQubitID]:
+        """:return: Array-like of involved qubit-ID's."""
         return self._involved_qubit_ids
 
     @property
     def involved_ancilla_qubit_ids(self) -> List[IQubitID]:
+        """:return: Array-like of involved ancilla qubit-ID's."""
         return [qubit_id for qubit_id in self.involved_qubit_ids if qubit_id in self._device_layout.ancilla_qubit_ids]
 
     @property
     def involved_data_qubit_ids(self) -> List[IQubitID]:
+        """:return: Array-like of involved data qubit-ID's."""
         return [qubit_id for qubit_id in self.involved_qubit_ids if qubit_id in self._device_layout.data_qubit_ids]
 
     @property
     def rounds(self) -> List[int]:
+        """:return: Array-like of number of QEC-rounds per experiment."""
         return self._cycle_stabilizer_counts
 
     @property
     def index_kernel(self) -> IStabilizerIndexingKernel:
+        """:return: Index kernel used for indexing data."""
         return self._experiment_index_kernel
 
     @classmethod
@@ -80,14 +86,14 @@ class DataManager:
     # region Class Constructor
     def __init__(
             self,
-            classifier_lookup: Dict[IQubitID, StateClassifierContainer],
+            classifier_lookup: Dict[IQubitID, IStateClassifierContainer],
             calibration_point_lookup: Dict[IQubitID, StateAcquisitionContainer],
             experiment_index_kernel: IStabilizerIndexingKernel,
             involved_qubit_ids: List[IQubitID],
             device_layout: ISurfaceCodeLayer,
             cycle_stabilizer_counts: List[int],
     ) -> None:
-        self._classifier_lookup: Dict[IQubitID, StateClassifierContainer] = classifier_lookup
+        self._classifier_lookup: Dict[IQubitID, IStateClassifierContainer] = classifier_lookup
         self._calibration_point_lookup: Dict[IQubitID, StateAcquisitionContainer] = calibration_point_lookup
         self._experiment_index_kernel: IStabilizerIndexingKernel = experiment_index_kernel
         self._involved_qubit_ids: List[IQubitID] = involved_qubit_ids
@@ -109,17 +115,7 @@ class DataManager:
             **kwargs,
         )
 
-    def get_labeled_error_detection_classifier(self, **kwargs) -> LabeledErrorDetectionIdentifier:
-        """
-        :param kwargs: Additional keyword arguments passed to class constructor.
-        :return: Instance that exposes high-level get-methods + xarray formatting,
-            which can be used to construct error decoders, Pij-matrix, etc.
-        """
-        return LabeledErrorDetectionIdentifier(
-            error_detection_identifier=self.get_error_detection_classifier(**kwargs),
-        )
-
-    def get_state_classifier(self, qubit_id: IQubitID) -> Optional[StateClassifierContainer]:
+    def get_state_classifier(self, qubit_id: IQubitID) -> Optional[IStateClassifierContainer]:
         """:return: State classifier based on qubit-ID. Returns None if qubit-ID is not supported."""
         if qubit_id not in self._classifier_lookup:
             return None
@@ -158,7 +154,7 @@ class DataManager:
 
         # Construct datastructures
         involved_qubit_ids: List[IQubitID] = involved_data_qubit_ids + involved_ancilla_qubit_ids
-        classifier_lookup: Dict[IQubitID, StateClassifierContainer] = {}
+        classifier_lookup: Dict[IQubitID, IStateClassifierContainer] = {}
         calibration_point_lookup: Dict[IQubitID, StateAcquisitionContainer] = {}
         channel_identifier_lookup: Dict[
             IQubitID, AcquisitionChannelIdentifier] = DataManager.get_channel_identifier_lookup(
@@ -200,10 +196,10 @@ class DataManager:
                 ]
             )
 
-            state_classification: StateClassifierContainer = StateClassifierContainer(
+            state_classification: ShotsClassifierContainer = ShotsClassifierContainer(
                 shots=raw_complex_shots,
                 decision_boundaries=calibration_points.decision_boundaries,
-                expected_parity=expected_parity_lookup.get(qubit_id, ParityType.EVEN),
+                _expected_parity=expected_parity_lookup.get(qubit_id, ParityType.EVEN),
             )
 
             classifier_lookup[qubit_id] = state_classification

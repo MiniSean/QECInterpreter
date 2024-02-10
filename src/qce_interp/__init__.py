@@ -3,7 +3,9 @@ from .data_manager import DataManager
 from .interface_definitions.intrf_channel_identifier import IQubitID, QubitIDObj
 from .interface_definitions.intrf_state_classification import (
     StateAcquisitionContainer,
+    IStateClassifierContainer,
     StateClassifierContainer,
+    ShotsClassifierContainer,
     StateKey,
     ParityType,
     DecisionBoundaries,
@@ -30,7 +32,9 @@ __all__ = [
     "LabeledSyndromeDecoder",
     "Distance5LookupTableDecoder",
     "StateAcquisitionContainer",
+    "IStateClassifierContainer",
     "StateClassifierContainer",
+    "ShotsClassifierContainer",
     "StateKey",
     "ParityType",
     "DecisionBoundaries",
