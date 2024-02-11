@@ -10,6 +10,7 @@ multipledispatch
 coverage
 matplotlib
 pytest
+cma
 
 # 3rd party libraries
 pymatching
