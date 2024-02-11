@@ -6,7 +6,24 @@ import numpy as np
 from numpy.typing import NDArray
 import pymatching
 import stim
-from typing import Callable
+from qce_circuit.addon_stim.intrf_noise_factory import IStimNoiseDresserFactory
+from qce_circuit.addon_stim.noise_factory_manager import (
+    NoiseFactoryManager,
+    apply_noise,
+)
+from qce_circuit.addon_stim.intrf_stim_factory import IStimCircuitFactory
+from qce_circuit.addon_stim import (
+    StimFactoryManager,
+    to_stim,
+)
+from qce_circuit.library.repetition_code.circuit_components import (
+    IRepetitionCodeDescription,
+)
+from qce_circuit.library.repetition_code.circuit_constructors import construct_repetition_code_circuit
+from qce_circuit.language import (
+    IDeclarativeCircuit,
+    InitialStateContainer,
+)
 from qce_interp.interface_definitions.intrf_error_identifier import IErrorDetectionIdentifier
 from qce_interp.interface_definitions.intrf_syndrome_decoder import IDecoder
 from qce_interp.interface_definitions.intrf_state_classification import IStateClassifierContainer
@@ -26,9 +43,12 @@ class MWPMDecoder(IDecoder):
     """
 
     # region Class Constructor
-    def __init__(self, error_identifier: IErrorDetectionIdentifier, circuit_func: Callable[[int], stim.Circuit]):
+    def __init__(self, error_identifier: IErrorDetectionIdentifier, circuit_description: IRepetitionCodeDescription, initial_state_container: InitialStateContainer = InitialStateContainer.empty(), stim_factory: IStimCircuitFactory = StimFactoryManager(), noise_factory: IStimNoiseDresserFactory = NoiseFactoryManager()):
         self._error_identifier: IErrorDetectionIdentifier = error_identifier
-        self._circuit_func: Callable[[int], stim.Circuit] = circuit_func
+        self._stim_factory: IStimCircuitFactory = stim_factory
+        self._noise_factory: IStimNoiseDresserFactory = noise_factory
+        self._initial_state_container: InitialStateContainer = initial_state_container
+        self._circuit_description: IRepetitionCodeDescription = circuit_description
     # endregion
 
     # region Interface Methods
@@ -72,16 +92,21 @@ class MWPMDecoder(IDecoder):
     # region Class Methods
     def get_decoder(self, cycle_stabilizer_count: int) -> pymatching.Matching:
         # Construct circuit from definition
-        stim_circuit: stim.Circuit = self._circuit_func(cycle_stabilizer_count)
-        noisy_circuit = stim_circuit  # add_noise(stim_circuit)
+        circuit: IDeclarativeCircuit = construct_repetition_code_circuit(
+            qec_cycles=cycle_stabilizer_count,
+            description=self._circuit_description,
+            initial_state=self._initial_state_container,
+        )
+        stim_circuit: stim.Circuit = to_stim(circuit=circuit, factory=self._stim_factory)
+        noisy_circuit = apply_noise(circuit=stim_circuit, factory=self._noise_factory)
 
-        dem = noisy_circuit.detector_error_model(
+        detector_error_model = noisy_circuit.detector_error_model(
             decompose_errors=True,
             allow_gauge_detectors=False,
             approximate_disjoint_errors=True,
         )
-        mwpm = pymatching.Matching(
-            graph=dem,
+        matching_object = pymatching.Matching(
+            graph=detector_error_model,
         )
-        return mwpm
+        return matching_object
     # endregion
