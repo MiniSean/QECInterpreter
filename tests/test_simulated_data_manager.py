@@ -1,8 +1,10 @@
 import unittest
 from typing import List
 from qce_circuit.connectivity.intrf_channel_identifier import QubitIDObj, IQubitID
-from qce_circuit.language.declarative_circuit import InitialStateEnum
-from qce_circuit.library.repetition_code_circuit import InitialStateContainer
+from qce_circuit.language.intrf_declarative_circuit import (
+    InitialStateContainer,
+    InitialStateEnum,
+)
 from qce_circuit.connectivity.connectivity_surface_code import Surface17Layer
 from qce_circuit.addon_stim.noise_factory_manager import NoiseFactoryManager
 from qce_interp.simulated_data_manager import SimulatedDataManager, NoiselessFactoryManager
