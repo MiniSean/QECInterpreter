@@ -12,7 +12,7 @@ from qce_interp.interface_definitions.intrf_state_classification import ParityTy
 from qce_interp.interface_definitions.intrf_error_identifier import ErrorDetectionIdentifier
 from qce_interp.interface_definitions.intrf_syndrome_decoder import ISyndromeDecoder
 from qce_interp.decoder_examples.lookup_table import Distance5LookupTableDecoder
-from qce_interp.utilities.connectivity_surface_code import Surface17Layer
+from qce_circuit.connectivity.connectivity_surface_code import Surface17Layer
 
 
 class DefectIdentifierTestCase(unittest.TestCase):

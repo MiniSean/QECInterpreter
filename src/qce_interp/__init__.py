@@ -20,8 +20,9 @@ from .interface_definitions.intrf_syndrome_decoder import (
     ISyndromeDecoder,
     ILabeledSyndromeDecoder,
 )
+from .decoder_examples.mwpm_decoders import MWPMDecoder
 from .decoder_examples.lookup_table import LabeledSyndromeDecoder, Distance5LookupTableDecoder
-from .utilities.connectivity_surface_code import Surface17Layer
+from qce_circuit.connectivity.connectivity_surface_code import Surface17Layer
 
 __all__ = [
     "DataManager",
@@ -31,6 +32,7 @@ __all__ = [
     "LabeledErrorDetectionIdentifier",
     "LabeledSyndromeDecoder",
     "Distance5LookupTableDecoder",
+    "MWPMDecoder",
     "StateAcquisitionContainer",
     "IStateClassifierContainer",
     "StateClassifierContainer",

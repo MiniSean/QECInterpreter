@@ -4,11 +4,11 @@
 import numpy as np
 from typing import List, Dict, Optional
 import stim
-from qce_circuit import (
+from qce_circuit.language import (
     IDeclarativeCircuit,
     InitialStateContainer,
 )
-from qce_circuit.library.repetition_code_circuit import (
+from qce_circuit.library.repetition_code.circuit_constructors import (
     construct_repetition_code_circuit,
 )
 from qce_circuit.addon_stim import to_stim
@@ -310,12 +310,12 @@ if __name__ == '__main__':
         InitialStateContainer,
         InitialStateEnum,
     )
-    from qce_interp.utilities.connectivity_surface_code import Surface17Layer
+    from qce_circuit.connectivity.connectivity_surface_code import Surface17Layer
     from qce_interp.visualization import plot_pij_matrix
     import matplotlib.pyplot as plt
 
     manager = SimulatedDataManager.from_simulated_repetition_code(
-        qec_rounds=[1, 2, 3, 4, 5],
+        qec_rounds=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
         involved_qubit_ids=[QubitIDObj('D7'), QubitIDObj('Z3'), QubitIDObj('D4'), QubitIDObj('Z1'), QubitIDObj('D5'), QubitIDObj('Z4'), QubitIDObj('D6'), QubitIDObj('Z2'), QubitIDObj('D3')],
         initial_state=InitialStateContainer.from_ordered_list([
             InitialStateEnum.ZERO,
