@@ -65,7 +65,7 @@ class DataManager(IDataManager):
         return [qubit_id for qubit_id in self.involved_qubit_ids if qubit_id in self._device_layout.data_qubit_ids]
 
     @property
-    def rounds(self) -> List[int]:
+    def qec_rounds(self) -> List[int]:
         """:return: Array-like of number of QEC-rounds per experiment."""
         return self._cycle_stabilizer_counts
 
@@ -91,14 +91,14 @@ class DataManager(IDataManager):
             experiment_index_kernel: IStabilizerIndexingKernel,
             involved_qubit_ids: List[IQubitID],
             device_layout: ISurfaceCodeLayer,
-            cycle_stabilizer_counts: List[int],
+            qec_rounds: List[int],
     ) -> None:
         self._classifier_lookup: Dict[IQubitID, IStateClassifierContainer] = classifier_lookup
         self._calibration_point_lookup: Dict[IQubitID, StateAcquisitionContainer] = calibration_point_lookup
         self._experiment_index_kernel: IStabilizerIndexingKernel = experiment_index_kernel
         self._involved_qubit_ids: List[IQubitID] = involved_qubit_ids
         self._device_layout: ISurfaceCodeLayer = device_layout
-        self._cycle_stabilizer_counts: List[int] = cycle_stabilizer_counts
+        self._cycle_stabilizer_counts: List[int] = qec_rounds
     # endregion
 
     # region Class Methods
@@ -112,6 +112,7 @@ class DataManager(IDataManager):
             index_kernel=self._experiment_index_kernel,
             involved_qubit_ids=self._involved_qubit_ids,
             device_layout=self._device_layout,
+            qec_rounds=self.qec_rounds,
             **kwargs,
         )
 
@@ -128,14 +129,14 @@ class DataManager(IDataManager):
         return self._calibration_point_lookup[qubit_id]
 
     @classmethod
-    def from_file_path(cls, file_path: Path, rounds: List[int], heralded_initialization: bool, qutrit_calibration_points: bool, involved_data_qubit_ids: List[IQubitID], involved_ancilla_qubit_ids: List[IQubitID], expected_parity_lookup: Dict[IQubitID, ParityType], device_layout: ISurfaceCodeLayer) -> 'DataManager':
+    def from_file_path(cls, file_path: Path, qec_rounds: List[int], heralded_initialization: bool, qutrit_calibration_points: bool, involved_data_qubit_ids: List[IQubitID], involved_ancilla_qubit_ids: List[IQubitID], expected_parity_lookup: Dict[IQubitID, ParityType], device_layout: ISurfaceCodeLayer) -> 'DataManager':
         """
         Constructs data extraction instructions.
         Opens hdf5 file using file_path and default HDF5DataExtractor strategy.
         Constructs experiment specific index kernel (This case repetition-code experiment).
         Iterate through each qubit, construct state-classifier based on raw shots, decision-boundaries and initial pauli-frame.
         :param file_path: Absolute file path to hdf5 file.
-        :param rounds: Array-like of integers representing qec-rounds per sub-experiment.
+        :param qec_rounds: Array-like of integers representing qec-rounds per sub-experiment.
         :param heralded_initialization: Boolean, whether heralded initialization is used during this experiment.
         :param qutrit_calibration_points: Boolean, whether qutrit (readout) calibration points are used during this experiment.
         :param involved_data_qubit_ids: Array-like of qubit-ID's corresponding to data-qubits.
@@ -162,13 +163,13 @@ class DataManager(IDataManager):
             qubit_ids=involved_qubit_ids,
         )
         experiment_repetitions: int = RepetitionExperimentKernel.estimate_experiment_repetitions(
-            rounds=rounds,
+            rounds=qec_rounds,
             heralded_initialization=heralded_initialization,
             qutrit_calibration_points=qutrit_calibration_points,
             dataset_size=len(data_dict[cls.data_key()])
         )
         experiment_index_kernel: RepetitionExperimentKernel = RepetitionExperimentKernel(
-            rounds=rounds,
+            rounds=qec_rounds,
             heralded_initialization=heralded_initialization,
             qutrit_calibration_points=qutrit_calibration_points,
             involved_data_qubit_ids=involved_data_qubit_ids,
@@ -211,7 +212,7 @@ class DataManager(IDataManager):
             experiment_index_kernel=experiment_index_kernel,
             involved_qubit_ids=involved_qubit_ids,
             device_layout=device_layout,
-            cycle_stabilizer_counts=rounds,
+            qec_rounds=qec_rounds,
         )
     # endregion
 

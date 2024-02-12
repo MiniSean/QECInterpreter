@@ -42,7 +42,7 @@ class IDataManager(ABC):
 
     @property
     @abstractmethod
-    def rounds(self) -> List[int]:
+    def qec_rounds(self) -> List[int]:
         """:return: Array-like of number of QEC-rounds per experiment."""
         raise InterfaceMethodException
 

@@ -27,7 +27,6 @@ orange_red_purple_shades = [
     '#8a2be2',  # blue violet (to transition towards more purplish shades)
     '#9370db',  # medium purple
 ]
-color_cycle = itertools.cycle(orange_red_purple_shades)
 
 
 def fit_function(x: np.ndarray, error: float, x_0: float) -> np.ndarray:
@@ -88,6 +87,7 @@ def plot_fidelity(decoder: IDecoder, included_rounds: List[int], target_state: I
     :param decoder: Decoder used to evaluate fidelity at each QEC-round.
     :param included_rounds: Array-like of included QEC-rounds. Each round will be evaluated.
     :param target_state: InitialStateContainer instance representing target state.
+    :param fit_error_rate: (Optional) Boolean whether or not to fit the logical error rate to fidelity values.
     :param label: (Optional) Label passed to plot constructor.
     :param kwargs: Key-word arguments passed to subplot constructor.
     :return: Tuple of Figure and Axes pair.
@@ -98,11 +98,13 @@ def plot_fidelity(decoder: IDecoder, included_rounds: List[int], target_state: I
         decoder.get_fidelity(x, target_state=target_state.as_array)
         for x in tqdm(x_array, desc=f"Processing {decoder.__class__.__name__} Decoder")
     ])
-    # Plotting
-    label_format: LabelFormat = LabelFormat(
+    color: str = kwargs.pop('color', orange_red_purple_shades[0])
+    label_format: LabelFormat = kwargs.get(SubplotKeywordEnum.LABEL_FORMAT.value, LabelFormat(
         x_label='QEC-Rounds',
         y_label='Logical fidelity'
-    )
+    ))
+
+    # Plotting
     kwargs[SubplotKeywordEnum.LABEL_FORMAT.value] = label_format
     fig, ax = construct_subplot(**kwargs)
 
@@ -111,7 +113,7 @@ def plot_fidelity(decoder: IDecoder, included_rounds: List[int], target_state: I
         y_array,
         linestyle='-',
         marker='.',
-        color=next(color_cycle),
+        color=color,
         label=label,
     )
     if fit_error_rate:
@@ -124,4 +126,30 @@ def plot_fidelity(decoder: IDecoder, included_rounds: List[int], target_state: I
     ax.set_xlim([-0.1, ax.get_xlim()[1]])
     ax.set_ylim([0.45, 1.02])
     ax.legend(loc='upper left', bbox_to_anchor=(1,1))
+    return fig, ax
+
+
+def plot_compare_fidelity(decoders: List[IDecoder], included_rounds: List[int], target_state: InitialStateContainer, **kwargs) -> IFigureAxesPair:
+    """
+    Plots multiple decoders fidelity in one subplot.
+    :param decoders: Decoder used to evaluate fidelity at each QEC-round.
+    :param included_rounds: Array-like of included QEC-rounds. Each round will be evaluated.
+    :param target_state: InitialStateContainer instance representing target state.
+    :param kwargs: Key-word arguments passed to subplot constructor.
+    :return: Tuple of Figure and Axes pair.
+    """
+    color_cycle = itertools.cycle(orange_red_purple_shades)
+
+    fig, ax = construct_subplot(**kwargs)
+    for decoder in decoders:
+        kwargs[SubplotKeywordEnum.HOST_AXES.value] = (fig, ax)
+        kwargs['color'] = next(color_cycle)
+        fig, ax = plot_fidelity(
+            decoder=decoder,
+            included_rounds=included_rounds,
+            target_state=target_state,
+            label=f"{decoder.__class__.__name__}",
+            fit_error_rate=True,
+            **kwargs,
+        )
     return fig, ax

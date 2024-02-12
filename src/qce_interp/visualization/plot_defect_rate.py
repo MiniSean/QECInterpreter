@@ -28,7 +28,6 @@ blue_shades = [
     '#00bfff',  # deep sky blue
     '#87ceeb'   # sky blue
 ]
-color_cycle = itertools.cycle(blue_shades)
 
 
 def plot_defect_rate(error_identifier: IErrorDetectionIdentifier, qubit_id: IQubitID, qec_cycles: int, **kwargs) -> IFigureAxesPair:
@@ -45,6 +44,7 @@ def plot_defect_rate(error_identifier: IErrorDetectionIdentifier, qubit_id: IQub
     # Calculate the mean across 'measurement_repetition'
     averages = data_array.mean(dim=DataArrayLabels.MEASUREMENT.value)
     label: str = qubit_id.id
+    color: str = kwargs.pop('color', blue_shades[0])
 
     # Plotting
     label_format: LabelFormat = LabelFormat(
@@ -53,7 +53,7 @@ def plot_defect_rate(error_identifier: IErrorDetectionIdentifier, qubit_id: IQub
     )
     kwargs[SubplotKeywordEnum.LABEL_FORMAT.value] = label_format
     fig, ax = construct_subplot(**kwargs)
-    averages.plot.line('.-', color=next(color_cycle), ax=ax, label=label)
+    averages.plot.line('.-', color=color, ax=ax, label=label)
     ax = label_format.apply_to_axes(axes=ax)
 
     ax.set_ylim([0.0, 0.5])
@@ -71,8 +71,10 @@ def plot_all_defect_rate(error_identifier: IErrorDetectionIdentifier, included_r
     """
     # Data allocation
     fig, ax = construct_subplot(**kwargs)
+    color_cycle = itertools.cycle(blue_shades)
     for qubit_id in error_identifier.involved_stabilizer_qubit_ids:
         kwargs[SubplotKeywordEnum.HOST_AXES.value] = (fig, ax)
+        kwargs['color'] = next(color_cycle)
         fig, ax = plot_defect_rate(
             error_identifier,
             qubit_id,
