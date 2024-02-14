@@ -175,7 +175,7 @@ class ILabeledErrorDetectionIdentifier(IErrorDetectionIdentifier, metaclass=ABCM
         raise InterfaceMethodException
 
     @abstractmethod
-    def get_labeled_binary_stabilizer_classification(self, cycle_stabilizer_count: int) -> NDArray[np.int_]:
+    def get_labeled_binary_stabilizer_classification(self, cycle_stabilizer_count: int) -> DataArray:
         """
         Retrieves binary classification data for stabilizer qubits in a labeled, structured format.
 
@@ -828,7 +828,7 @@ class LabeledErrorDetectionIdentifier(ILabeledErrorDetectionIdentifier):
             cycle_stabilizer_count=cycle_stabilizer_count,
         )
 
-    def get_labeled_binary_stabilizer_classification(self, cycle_stabilizer_count: int) -> NDArray[np.int_]:
+    def get_labeled_binary_stabilizer_classification(self, cycle_stabilizer_count: int) -> DataArray:
         """
         Retrieves binary classification data for stabilizer qubits in a labeled, structured format.
 
