@@ -85,9 +85,12 @@ def _plot_pij_matrix(pij_matrix: np.ndarray, ordered_qubit_ids: List[IQubitID], 
     for i in range(number_of_qubits - 1):
         ax.axhline((i+1)*R-.5, color='gainsboro', alpha=1)
         ax.axvline((i+1)*R-.5, color='gainsboro', alpha=1)
-    for i in range(number_of_qubits*R-1):
-        ax.axhline((i+1)-.5, color='gainsboro', alpha=1, lw=.75)
-        ax.axvline((i+1)-.5, color='gainsboro', alpha=1, lw=.75)
+
+    include_minor_tick_lines: bool = R <= 20 or number_of_qubits <= 4
+    if include_minor_tick_lines:
+        for i in range(number_of_qubits*R-1):
+            ax.axhline((i+1)-.5, color='gainsboro', alpha=1, lw=.75)
+            ax.axvline((i+1)-.5, color='gainsboro', alpha=1, lw=.75)
     # Plot colorbar
     cb1 = fig.colorbar(im1, aspect=40)
     cb2 = fig.colorbar(im2, aspect=40)
