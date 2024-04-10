@@ -59,6 +59,12 @@ class IErrorDetectionIdentifier(ABC):
     def involved_data_qubit_ids(self) -> List[IQubitID]:
         """:return: Array-like of involved qubit-ID's"""
         raise InterfaceMethodException
+
+    @property
+    @abstractmethod
+    def qec_rounds(self) -> List[int]:
+        """:return: Array-like of number of QEC-rounds per experiment."""
+        raise InterfaceMethodException
     # endregion
 
     # region Interface Methods
@@ -169,7 +175,7 @@ class ILabeledErrorDetectionIdentifier(IErrorDetectionIdentifier, metaclass=ABCM
         raise InterfaceMethodException
 
     @abstractmethod
-    def get_labeled_binary_stabilizer_classification(self, cycle_stabilizer_count: int) -> NDArray[np.int_]:
+    def get_labeled_binary_stabilizer_classification(self, cycle_stabilizer_count: int) -> DataArray:
         """
         Retrieves binary classification data for stabilizer qubits in a labeled, structured format.
 
@@ -280,6 +286,11 @@ class ErrorDetectionIdentifier(IErrorDetectionIdentifier):
     def involved_data_qubit_ids(self) -> List[IQubitID]:
         """:return: Array-like of involved qubit-ID's"""
         return [qubit_id for qubit_id in self._involved_qubit_ids if qubit_id in self._device_layout.data_qubit_ids]
+
+    @property
+    def qec_rounds(self) -> List[int]:
+        """:return: Array-like of number of QEC-rounds per experiment."""
+        return self._qec_rounds
     # endregion
 
     # region Class Properties
@@ -296,8 +307,10 @@ class ErrorDetectionIdentifier(IErrorDetectionIdentifier):
     def __init__(
             self,
             classifier_lookup: Dict[IQubitID, IStateClassifierContainer],
-            index_kernel: IStabilizerIndexingKernel, involved_qubit_ids: List[IQubitID],
+            index_kernel: IStabilizerIndexingKernel,
+            involved_qubit_ids: List[IQubitID],
             device_layout: ISurfaceCodeLayer,
+            qec_rounds: List[int],
             use_heralded_post_selection: bool = False,
             use_projected_leakage_post_selection: bool = False,
             use_stabilizer_leakage_post_selection: bool = False,
@@ -307,6 +320,7 @@ class ErrorDetectionIdentifier(IErrorDetectionIdentifier):
         self._index_kernel: IStabilizerIndexingKernel = index_kernel
         self._involved_qubit_ids: List[IQubitID] = involved_qubit_ids
         self._device_layout: ISurfaceCodeLayer = device_layout
+        self._qec_rounds: List[int] = qec_rounds
         self._use_post_selection: bool = use_heralded_post_selection
         self._use_computational_parity: bool = use_computational_parity
         self._use_projected_leakage_post_selection: bool = use_projected_leakage_post_selection
@@ -744,6 +758,11 @@ class LabeledErrorDetectionIdentifier(ILabeledErrorDetectionIdentifier):
     def involved_data_qubit_ids(self) -> List[IQubitID]:
         """:return: Array-like of involved qubit-ID's"""
         return self._error_detection_identifier.involved_data_qubit_ids
+
+    @property
+    def qec_rounds(self) -> List[int]:
+        """:return: Array-like of number of QEC-rounds per experiment."""
+        return self._error_detection_identifier.qec_rounds
     # endregion
 
     # region Class Constructor
@@ -809,7 +828,7 @@ class LabeledErrorDetectionIdentifier(ILabeledErrorDetectionIdentifier):
             cycle_stabilizer_count=cycle_stabilizer_count,
         )
 
-    def get_labeled_binary_stabilizer_classification(self, cycle_stabilizer_count: int) -> NDArray[np.int_]:
+    def get_labeled_binary_stabilizer_classification(self, cycle_stabilizer_count: int) -> DataArray:
         """
         Retrieves binary classification data for stabilizer qubits in a labeled, structured format.
 
