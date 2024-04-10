@@ -158,7 +158,7 @@ class DataManager(IDataManager):
         calibration_point_lookup: Dict[IQubitID, StateAcquisitionContainer] = {}
         channel_identifier_lookup: Dict[
             IQubitID, AcquisitionChannelIdentifier] = DataManager.get_channel_identifier_lookup(
-            channel_names=[name.decode() for name in data_dict[cls.channel_name_key()]],
+            channel_names=[name.decode() if isinstance(name, bytes) else name for name in data_dict[cls.channel_name_key()]],
             qubit_ids=involved_qubit_ids,
         )
         experiment_repetitions: int = RepetitionExperimentKernel.estimate_experiment_repetitions(
