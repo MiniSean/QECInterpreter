@@ -63,8 +63,9 @@ def get_fit_plot_arguments(x_array: np.ndarray, y_array: np.ndarray, exclude_fir
     bounds = ([0, -np.inf], [0.5, np.inf])
 
     # Perform curve fitting
-    popt, _ = curve_fit(fit_function, x_array[exclude_first_n:], y_array[exclude_first_n:], bounds=bounds)
+    popt, pcov = curve_fit(fit_function, x_array[exclude_first_n:], y_array[exclude_first_n:], bounds=bounds)
     fitted_error, fitted_x0 = popt
+    perr = np.sqrt(np.diag(pcov))
 
     # Prepare x values for plotting and calculate fitted function values
     plot_x_values = x_array[exclude_first_n:]
@@ -76,7 +77,7 @@ def get_fit_plot_arguments(x_array: np.ndarray, y_array: np.ndarray, exclude_fir
         marker='none',
         color='k',
         # label=rf'$\epsilon_L$ = {fitted_error:.2%}, $x_0$ = {fitted_x0:.2f}',
-        label=rf'$\epsilon_L$ = {fitted_error:.2%}',
+        label=rf'$\epsilon_L$ = {fitted_error:.2%}\pm{perr}',
     )
 
     return (plot_x_values, plot_y_values), plot_args

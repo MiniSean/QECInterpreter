@@ -64,6 +64,7 @@ def _plot_pij_matrix(pij_matrix: np.ndarray, ordered_qubit_ids: List[IQubitID], 
 
     R = int(pij_matrix.shape[0] / number_of_qubits)
     ticks_array = np.arange(0, number_of_qubits*R, R)-.5
+    include_minor_tick_lines: bool = R <= 20 or number_of_qubits <= 4
 
     ax.set_xticks(ticks_array)
     ax.set_yticks(ticks_array)
@@ -77,7 +78,11 @@ def _plot_pij_matrix(pij_matrix: np.ndarray, ordered_qubit_ids: List[IQubitID], 
     for i, q in enumerate(ordered_qubit_names):
         ax.text(i*R+(R-1)/2, -3.5, q, va='center', ha='center', size=12)
         ax.text(-3.5, i*R+(R-1)/2, q, va='center', ha='center', size=12)
-    for i in range(R):
+    # Minor tick labels
+    ticks = np.arange(0, R+1, 1.0, dtype=np.int_)
+    if not include_minor_tick_lines:
+        ticks = np.arange(0, R+1, 5.0, dtype=np.int_)
+    for i in ticks:
         for j in range(number_of_qubits):
             ax.text(-1.5, i+R*j, i, va='center', ha='center', size=5.5)
             ax.text(i+R*j, -1.5, i, va='center', ha='center', size=5.5)
@@ -85,9 +90,11 @@ def _plot_pij_matrix(pij_matrix: np.ndarray, ordered_qubit_ids: List[IQubitID], 
     for i in range(number_of_qubits - 1):
         ax.axhline((i+1)*R-.5, color='gainsboro', alpha=1)
         ax.axvline((i+1)*R-.5, color='gainsboro', alpha=1)
-    for i in range(number_of_qubits*R-1):
-        ax.axhline((i+1)-.5, color='gainsboro', alpha=1, lw=.75)
-        ax.axvline((i+1)-.5, color='gainsboro', alpha=1, lw=.75)
+
+    if include_minor_tick_lines:
+        for i in range(number_of_qubits*R-1):
+            ax.axhline((i+1)-.5, color='gainsboro', alpha=1, lw=.75)
+            ax.axvline((i+1)-.5, color='gainsboro', alpha=1, lw=.75)
     # Plot colorbar
     cb1 = fig.colorbar(im1, aspect=40)
     cb2 = fig.colorbar(im2, aspect=40)
