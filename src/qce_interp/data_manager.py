@@ -1,12 +1,15 @@
 # -------------------------------------------
 # Module containing functionality for formatting quantum error (detection/correction) experimental data.
 # -------------------------------------------
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from tqdm import tqdm
 import numpy as np
 from numpy.typing import NDArray
 from typing import List, Dict, Any, Optional
+from enum import Enum, unique
 from pathlib import Path
+from qce_interp.utilities.custom_exceptions import InterfaceMethodException
 from qce_interp.utilities.readwrite_hdf5 import (
     extract_data,
     HDF5DataExtractor,
@@ -33,12 +36,69 @@ from qce_interp.interface_definitions.intrf_error_identifier import (
 )
 
 
+@unique
+class AcquisitionType(Enum):
+    ONE_CHANNEL = "single_channel"
+    TWO_CHANNEL = "double_channel"
+
+
+class IAcquisitionChannelIdentifier(ABC):
+    """
+    Interface class, describing acquisition channel property.
+    """
+
+    # region Interface Properties
+    @property
+    @abstractmethod
+    def acquisition_type(self) -> AcquisitionType:
+        """:return: Type of acquisition (1-channel or 2-channel)."""
+        raise InterfaceMethodException
+
+    @property
+    @abstractmethod
+    def channel_indices(self) -> List[int]:
+        """:return: Array-like of channel indices."""
+        raise InterfaceMethodException
+    # endregion
+
+
 @dataclass(frozen=True)
-class AcquisitionChannelIdentifier:
+class SingleAcquisitionChannelIdentifier(IAcquisitionChannelIdentifier):
+    """Data class, containing reference to qubit-ID, channel index."""
+    qubit_id: IQubitID
+    channel_index: int
+
+    # region Interface Properties
+    @property
+    def acquisition_type(self) -> AcquisitionType:
+        """:return: Type of acquisition (1-channel or 2-channel)."""
+        return AcquisitionType.ONE_CHANNEL
+
+    @property
+    def channel_indices(self) -> List[int]:
+        """:return: Array-like of channel indices."""
+        return [self.channel_index]
+    # endregion
+
+
+@dataclass(frozen=True)
+class AcquisitionChannelIdentifier(IAcquisitionChannelIdentifier):
     """Data class, containing reference to qubit-ID, I-channel index, Q-channel index."""
     qubit_id: IQubitID
     channel_index_i: int
     channel_index_q: int
+
+    # region Interface Properties
+    @property
+    def acquisition_type(self) -> AcquisitionType:
+        """:return: Type of acquisition (1-channel or 2-channel)."""
+        return AcquisitionType.TWO_CHANNEL
+
+    @property
+    def channel_indices(self) -> List[int]:
+        """:return: Array-like of channel indices."""
+        return [self.channel_index_i, self.channel_index_q]
+    # endregion
 
 
 class DataManager(IDataManager):
@@ -158,7 +218,7 @@ class DataManager(IDataManager):
         classifier_lookup: Dict[IQubitID, IStateClassifierContainer] = {}
         calibration_point_lookup: Dict[IQubitID, StateAcquisitionContainer] = {}
         channel_identifier_lookup: Dict[
-            IQubitID, AcquisitionChannelIdentifier] = DataManager.get_channel_identifier_lookup(
+            IQubitID, IAcquisitionChannelIdentifier] = DataManager.get_channel_identifier_lookup(
             channel_names=[name.decode() if isinstance(name, bytes) else name for name in data_dict[cls.channel_name_key()]],
             qubit_ids=involved_qubit_ids,
         )
@@ -178,8 +238,8 @@ class DataManager(IDataManager):
         )
 
         for qubit_id in tqdm(involved_qubit_ids, desc='Processing data file'):
-            channel_identifier: AcquisitionChannelIdentifier = channel_identifier_lookup[qubit_id]
-            raw_shots: NDArray[np.float_] = data_dict[cls.data_key()][:, [channel_identifier.channel_index_i, channel_identifier.channel_index_q]]
+            channel_identifier: IAcquisitionChannelIdentifier = channel_identifier_lookup[qubit_id]
+            raw_shots: NDArray[np.float_] = data_dict[cls.data_key()][:, channel_identifier.channel_indices]
             raw_complex_shots: NDArray[np.complex_] = StateAcquisitionContainer.real_imag_to_complex(raw_shots)
 
             # Qutrit calibration points
@@ -218,25 +278,46 @@ class DataManager(IDataManager):
 
     # region Static Class Methods
     @staticmethod
-    def get_channel_identifier_lookup(channel_names: List[str], qubit_ids: List[IQubitID]) -> Dict[IQubitID, AcquisitionChannelIdentifier]:
+    def get_channel_identifier_lookup(channel_names: List[str], qubit_ids: List[IQubitID]) -> Dict[IQubitID, IAcquisitionChannelIdentifier]:
         """
 
         :param channel_names:
         :param qubit_ids:
         :return:
         """
+        # Data allocation
+        result: Dict[IQubitID, IAcquisitionChannelIdentifier] = {}
+
+        def get_channel_identifier_defined(channel_names: List[str], channel_identifier: str) -> bool:
+            for i, channel_name in enumerate(channel_names):
+                if channel_identifier in channel_name:
+                    return True
+            return False
+
         # Map qubit id to (UHF acquisition) channel index. (Which can map to channel name)
         def get_channel_index(channel_names: List[str], channel_identifier: str) -> int:
             for i, channel_name in enumerate(channel_names):
                 if channel_identifier in channel_name:
                     return i + 1
 
-        return {
-            qubit_id: AcquisitionChannelIdentifier(
-                qubit_id=qubit_id,
-                channel_index_i=get_channel_index(channel_names=channel_names, channel_identifier=f"{qubit_id.id} I"),
-                channel_index_q=get_channel_index(channel_names=channel_names, channel_identifier=f"{qubit_id.id} Q"),
-            )
-            for qubit_id in qubit_ids
-        }
+        for qubit_id in qubit_ids:
+            single_channel_defined: bool = get_channel_identifier_defined(channel_names=channel_names, channel_identifier=f"{qubit_id.id}")
+            double_channel_defined: bool = (get_channel_identifier_defined(channel_names=channel_names, channel_identifier=f"{qubit_id.id} I")
+                                            and get_channel_identifier_defined(channel_names=channel_names, channel_identifier=f"{qubit_id.id} Q"))
+
+            if double_channel_defined:
+                result[qubit_id] = AcquisitionChannelIdentifier(
+                    qubit_id=qubit_id,
+                    channel_index_i=get_channel_index(channel_names=channel_names, channel_identifier=f"{qubit_id.id} I"),
+                    channel_index_q=get_channel_index(channel_names=channel_names, channel_identifier=f"{qubit_id.id} Q"),
+                )
+                continue
+            if single_channel_defined:
+                result[qubit_id] = SingleAcquisitionChannelIdentifier(
+                    qubit_id=qubit_id,
+                    channel_index=get_channel_index(channel_names=channel_names, channel_identifier=f"{qubit_id.id}"),
+                )
+                continue
+
+        return result
     # endregion
