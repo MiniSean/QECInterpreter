@@ -64,7 +64,7 @@ def _plot_pij_matrix(pij_matrix: np.ndarray, ordered_qubit_ids: List[IQubitID], 
 
     R = int(pij_matrix.shape[0] / number_of_qubits)
     ticks_array = np.arange(0, number_of_qubits*R, R)-.5
-    include_minor_tick_lines: bool = R <= 20 or number_of_qubits <= 4
+    include_minor_tick_lines: bool = R <= 10 and number_of_qubits <= 4
 
     ax.set_xticks(ticks_array)
     ax.set_yticks(ticks_array)

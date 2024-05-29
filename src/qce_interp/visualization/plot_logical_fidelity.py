@@ -76,8 +76,7 @@ def get_fit_plot_arguments(x_array: np.ndarray, y_array: np.ndarray, exclude_fir
         linestyle='--',
         marker='none',
         color='k',
-        # label=rf'$\epsilon_L$ = {fitted_error:.2%}, $x_0$ = {fitted_x0:.2f}',
-        label=rf'$\epsilon_L$ = {fitted_error:.2%}\pm{perr}',
+        label=rf'$\epsilon_L$ = {fitted_error:.2%}$\pm${perr[0]:.2%}',
     )
 
     return (plot_x_values, plot_y_values), plot_args
@@ -118,7 +117,12 @@ def plot_fidelity(decoder: IDecoder, included_rounds: List[int], target_state: I
         label=label,
     )
     if fit_error_rate:
-        args, kwargs = get_fit_plot_arguments(x_array=x_array, y_array=y_array, exclude_first_n=2 * len(target_state.as_array))
+        code_distance: int = len(target_state.as_array)
+        exclude_first_n: int = code_distance
+        if code_distance < 7:
+            exclude_first_n = 2 * code_distance
+
+        args, kwargs = get_fit_plot_arguments(x_array=x_array, y_array=y_array, exclude_first_n=exclude_first_n)
         ax.plot(
             *args,
             **kwargs,
