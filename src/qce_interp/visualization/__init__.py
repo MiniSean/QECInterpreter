@@ -2,7 +2,7 @@
 from .plot_state_distribution import plot_state_evolution
 from .plot_pij_matrix import plot_pij_matrix
 from .plot_state_classification import plot_state_classification
-from .plot_defect_rate import plot_defect_rate, plot_all_defect_rate
+from .plot_defect_rate import plot_defect_rate, plot_all_defect_rate, plot_all_defect_and_leakage
 from .plot_logical_fidelity import (
     plot_fidelity,
     plot_compare_fidelity,
@@ -14,6 +14,7 @@ __all__ = [
     "plot_state_classification",
     "plot_defect_rate",
     "plot_all_defect_rate",
+    "plot_all_defect_and_leakage",
     "plot_fidelity",
     "plot_compare_fidelity",
 ]
