@@ -585,6 +585,14 @@ class ShotsClassifierContainer(IStateClassifierContainer):
             state_classification=self._process_tensor(self.shots, self.decision_boundaries.get_binary_predictions),
             _expected_parity=self.expected_parity,
         )
+
+    @property
+    def state_classifier_ternary(self) -> StateClassifierContainer:
+        """:return: Pure state classifier based on self."""
+        return StateClassifierContainer(
+            state_classification=self._process_tensor(self.shots, self.decision_boundaries.get_predictions),
+            _expected_parity=self.expected_parity,
+        )
     # endregion
 
     # region Class Methods
@@ -594,7 +602,7 @@ class ShotsClassifierContainer(IStateClassifierContainer):
 
     def get_ternary_classification(self) -> NDArray[np.int_]:
         """:return: Ternary classification based on acquisition shots and decision boundaries."""
-        return self.state_classifier.get_ternary_classification()
+        return self.state_classifier_ternary.get_ternary_classification()
 
     def get_eigenvalue_classification(self) -> NDArray[np.int_]:
         """:return: Eigenvalue (0 -> +1, 1 -> -1) classification based on acquisition shots and decision boundaries."""
