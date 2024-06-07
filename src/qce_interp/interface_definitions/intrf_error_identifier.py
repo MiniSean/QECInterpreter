@@ -152,6 +152,16 @@ class IErrorDetectionIdentifier(ABC):
         :return: Tensor of ternary-classification of projected data qubits at specific cycle.
         """
         raise InterfaceMethodException
+
+    @abstractmethod
+    def copy_with_post_selection(self, use_heralded_post_selection: bool = False, use_projected_leakage_post_selection: bool = False, use_stabilizer_leakage_post_selection: bool = False, ) -> 'IErrorDetectionIdentifier':
+        """
+        :param use_heralded_post_selection: Use post-selection on heralded initialization.
+        :param use_projected_leakage_post_selection: Use post-selection on leakage events during (final) qubit measurement projections.
+        :param use_stabilizer_leakage_post_selection: Use post-selection on leakage events during (any) stabilizer measurement projections.
+        :return: Newly constructed instance inheriting IErrorDetectionIdentifier interface based on post-selection settings.
+        """
+        raise InterfaceMethodException
     # endregion
 
 
@@ -560,6 +570,25 @@ class ErrorDetectionIdentifier(IErrorDetectionIdentifier):
         # (N, 1, D) Transpose
         result = result.transpose((1, 2, 0))
         return result
+
+    def copy_with_post_selection(self, use_heralded_post_selection: bool = False, use_projected_leakage_post_selection: bool = False, use_stabilizer_leakage_post_selection: bool = False, ) -> 'ErrorDetectionIdentifier':
+        """
+        :param use_heralded_post_selection: Use post-selection on heralded initialization.
+        :param use_projected_leakage_post_selection: Use post-selection on leakage events during (final) qubit measurement projections.
+        :param use_stabilizer_leakage_post_selection: Use post-selection on leakage events during (any) stabilizer measurement projections.
+        :return: Newly constructed instance inheriting IErrorDetectionIdentifier interface based on post-selection settings.
+        """
+        return ErrorDetectionIdentifier(
+            classifier_lookup=self._classifier_lookup,
+            index_kernel=self._index_kernel,
+            involved_qubit_ids=self.involved_qubit_ids,
+            device_layout=self._device_layout,
+            qec_rounds=self._qec_rounds,
+            use_heralded_post_selection=use_heralded_post_selection,
+            use_projected_leakage_post_selection=use_projected_leakage_post_selection,
+            use_stabilizer_leakage_post_selection=use_stabilizer_leakage_post_selection,
+            use_computational_parity=self._use_computational_parity,
+        )
     # endregion
 
     # region Class Methods
@@ -1125,5 +1154,20 @@ class LabeledErrorDetectionIdentifier(ILabeledErrorDetectionIdentifier):
         )
 
         return data_array
+
+    def copy_with_post_selection(self, use_heralded_post_selection: bool = False, use_projected_leakage_post_selection: bool = False, use_stabilizer_leakage_post_selection: bool = False, ) -> 'LabeledErrorDetectionIdentifier':
+        """
+        :param use_heralded_post_selection: Use post-selection on heralded initialization.
+        :param use_projected_leakage_post_selection: Use post-selection on leakage events during (final) qubit measurement projections.
+        :param use_stabilizer_leakage_post_selection: Use post-selection on leakage events during (any) stabilizer measurement projections.
+        :return: Newly constructed instance inheriting IErrorDetectionIdentifier interface based on post-selection settings.
+        """
+        return LabeledErrorDetectionIdentifier(
+            error_detection_identifier=self._error_detection_identifier.copy_with_post_selection(
+                use_heralded_post_selection=use_heralded_post_selection,
+                use_projected_leakage_post_selection=use_projected_leakage_post_selection,
+                use_stabilizer_leakage_post_selection=use_stabilizer_leakage_post_selection,
+            )
+        )
     # endregion
 
