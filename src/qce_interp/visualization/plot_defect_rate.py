@@ -40,9 +40,16 @@ def plot_defect_rate(error_identifier: IErrorDetectionIdentifier, qubit_id: IQub
     """
     # Data allocation
     labeled_error_identifier: LabeledErrorDetectionIdentifier = LabeledErrorDetectionIdentifier(error_identifier)
+    labeled_error_identifier_post_selected: LabeledErrorDetectionIdentifier = labeled_error_identifier.copy_with_post_selection(
+        use_heralded_post_selection=labeled_error_identifier.include_heralded_post_selection,
+        use_projected_leakage_post_selection=False,
+        use_stabilizer_leakage_post_selection=True,
+    )
     data_array: xr.DataArray = labeled_error_identifier.get_labeled_defect_stabilizer_lookup(cycle_stabilizer_count=qec_cycles)[qubit_id]
+    data_array_post_selected: xr.DataArray = labeled_error_identifier_post_selected.get_labeled_defect_stabilizer_lookup(cycle_stabilizer_count=qec_cycles)[qubit_id]
     # Calculate the mean across 'measurement_repetition'
     averages = data_array.mean(dim=DataArrayLabels.MEASUREMENT.value)
+    averages_post_selected = data_array_post_selected.mean(dim=DataArrayLabels.MEASUREMENT.value)
     label: str = qubit_id.id
     color: str = kwargs.pop('color', blue_shades[0])
 
@@ -54,6 +61,7 @@ def plot_defect_rate(error_identifier: IErrorDetectionIdentifier, qubit_id: IQub
     kwargs[SubplotKeywordEnum.LABEL_FORMAT.value] = label_format
     fig, ax = construct_subplot(**kwargs)
     averages.plot.line('.-', color=color, ax=ax, label=label)
+    averages_post_selected.plot.line('--', color=color, ax=ax)
     ax = label_format.apply_to_axes(axes=ax)
 
     ax.set_ylim([0.0, 0.5])
