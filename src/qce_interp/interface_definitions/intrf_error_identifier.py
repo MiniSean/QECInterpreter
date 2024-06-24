@@ -666,10 +666,14 @@ class ErrorDetectionIdentifier(IErrorDetectionIdentifier):
         """
         # (S, N, M) Projected acquisition index slices
         index_slices: NDArray[np.int_] = np.asarray([
-            self._index_kernel.get_stabilizer_and_projected_cycle_acquisition_indices(qubit_id=qubit_id,
-                                                                  cycle_stabilizer_count=cycle_stabilizer_count)
+            self._index_kernel.get_stabilizer_and_projected_cycle_acquisition_indices(qubit_id=qubit_id, cycle_stabilizer_count=cycle_stabilizer_count)
             for qubit_id in self.involved_stabilizer_qubit_ids
         ])
+        # Guard clause, return full (True) response in-case of 0-QEC-round
+        if np.size(index_slices) == 0:
+            s, n, m = index_slices.shape
+            return np.full(shape=(n,), fill_value=True)
+
         # (S, N, M) Ternary classification of projected acquisition
         stabilizer_ternary_tensor: np.ndarray = np.zeros(index_slices.shape, dtype=np.int_)
         for i, qubit_id in enumerate(self.involved_stabilizer_qubit_ids):
