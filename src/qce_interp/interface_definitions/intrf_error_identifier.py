@@ -162,6 +162,15 @@ class IErrorDetectionIdentifier(ABC):
         :return: Newly constructed instance inheriting IErrorDetectionIdentifier interface based on post-selection settings.
         """
         raise InterfaceMethodException
+
+    @abstractmethod
+    def get_post_selection_mask(self, cycle_stabilizer_count: int) -> NDArray[np.bool_]:
+        """
+        Output shape: (N,)
+        - N is the number of measurement repetitions.
+        :return: Tensor of boolean mask based on post-selection conditions (at specific cycle).
+        """
+        raise InterfaceMethodException
     # endregion
 
 
@@ -1172,6 +1181,16 @@ class LabeledErrorDetectionIdentifier(ILabeledErrorDetectionIdentifier):
                 use_projected_leakage_post_selection=use_projected_leakage_post_selection,
                 use_stabilizer_leakage_post_selection=use_stabilizer_leakage_post_selection,
             )
+        )
+
+    def get_post_selection_mask(self, cycle_stabilizer_count: int) -> NDArray[np.bool_]:
+        """
+        Output shape: (N,)
+        - N is the number of measurement repetitions.
+        :return: Tensor of boolean mask based on post-selection conditions (at specific cycle).
+        """
+        return self._error_detection_identifier.get_post_selection_mask(
+            cycle_stabilizer_count=cycle_stabilizer_count,
         )
     # endregion
 
