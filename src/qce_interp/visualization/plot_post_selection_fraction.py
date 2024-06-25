@@ -26,19 +26,25 @@ def plot_post_selection_fraction(error_identifier: IErrorDetectionIdentifier, qe
     ps_heralded_fraction = np.zeros_like(qec_rounds, dtype=np.float_)
     ps_data_fraction = np.zeros_like(qec_rounds, dtype=np.float_)
     ps_ancilla_fraction = np.zeros_like(qec_rounds, dtype=np.float_)
+    ps_heralded_ancilla_fraction = np.zeros_like(qec_rounds, dtype=np.float_)
 
     heralded_error_identifier = error_identifier.copy_with_post_selection(
         use_heralded_post_selection=True,
         use_projected_leakage_post_selection=False,
         use_stabilizer_leakage_post_selection=False,
     )
-    heralded_data_error_identifier = error_identifier.copy_with_post_selection(
-        use_heralded_post_selection=True,
+    data_error_identifier = error_identifier.copy_with_post_selection(
+        use_heralded_post_selection=False,
         use_projected_leakage_post_selection=True,
         use_stabilizer_leakage_post_selection=False,
     )
-    heralded_data_ancilla_error_identifier = error_identifier.copy_with_post_selection(
+    ancilla_error_identifier = error_identifier.copy_with_post_selection(
         use_heralded_post_selection=False,
+        use_projected_leakage_post_selection=False,
+        use_stabilizer_leakage_post_selection=True,
+    )
+    heralded_ancilla_error_identifier = error_identifier.copy_with_post_selection(
+        use_heralded_post_selection=True,
         use_projected_leakage_post_selection=False,
         use_stabilizer_leakage_post_selection=True,
     )
@@ -47,11 +53,14 @@ def plot_post_selection_fraction(error_identifier: IErrorDetectionIdentifier, qe
         ps_mask_heralded: NDArray[np.bool_] = heralded_error_identifier.get_post_selection_mask(cycle_stabilizer_count=qec_round)
         ps_heralded_fraction[i] = (1 - np.sum(ps_mask_heralded) / len(ps_mask_heralded))
 
-        ps_mask_data: NDArray[np.bool_] = heralded_data_error_identifier.get_post_selection_mask(cycle_stabilizer_count=qec_round)
+        ps_mask_data: NDArray[np.bool_] = data_error_identifier.get_post_selection_mask(cycle_stabilizer_count=qec_round)
         ps_data_fraction[i] = (1 - np.sum(ps_mask_data) / len(ps_mask_data))
 
-        ps_mask_ancilla: NDArray[np.bool_] = heralded_data_ancilla_error_identifier.get_post_selection_mask(cycle_stabilizer_count=qec_round)
+        ps_mask_ancilla: NDArray[np.bool_] = ancilla_error_identifier.get_post_selection_mask(cycle_stabilizer_count=qec_round)
         ps_ancilla_fraction[i] = (1 - np.sum(ps_mask_ancilla) / len(ps_mask_ancilla))
+
+        ps_mask_heralded_ancilla: NDArray[np.bool_] = heralded_ancilla_error_identifier.get_post_selection_mask(cycle_stabilizer_count=qec_round)
+        ps_heralded_ancilla_fraction[i] = (1 - np.sum(ps_mask_heralded_ancilla) / len(ps_mask_heralded_ancilla))
 
     kwargs[SubplotKeywordEnum.LABEL_FORMAT.value] = kwargs.get(
         SubplotKeywordEnum.LABEL_FORMAT.value,
@@ -82,7 +91,7 @@ def plot_post_selection_fraction(error_identifier: IErrorDetectionIdentifier, qe
     )
     ax.plot(
         qec_rounds,
-        ps_heralded_fraction + ps_ancilla_fraction,
+        ps_heralded_ancilla_fraction,
         '--',
         color='k',
         label='Leakage (Ancilla) + Heralded fraction',
