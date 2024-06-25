@@ -8,6 +8,7 @@ from .plot_logical_fidelity import (
     plot_compare_fidelity,
 )
 from .plot_post_selection_fraction import plot_post_selection_fraction
+from .plot_combined_logical_fidelity import plot_combined_overview
 
 __all__ = [
     "plot_state_evolution",
@@ -19,4 +20,5 @@ __all__ = [
     "plot_fidelity",
     "plot_compare_fidelity",
     "plot_post_selection_fraction",
+    "plot_combined_overview",
 ]

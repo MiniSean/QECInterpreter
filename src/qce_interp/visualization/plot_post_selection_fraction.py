@@ -66,7 +66,7 @@ def plot_post_selection_fraction(error_identifier: IErrorDetectionIdentifier, qe
         SubplotKeywordEnum.LABEL_FORMAT.value,
         LabelFormat(
             x_label='QEC round',
-            y_label='Post-selection rejection fraction.',
+            y_label='Rejection fraction',
         ),
     )
     fig, ax = construct_subplot(**kwargs)
