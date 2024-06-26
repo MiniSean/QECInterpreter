@@ -2,6 +2,7 @@
 # Module for visualizing state classification.
 # -------------------------------------------
 import numpy as np
+from numpy.typing import NDArray
 from typing import List, Dict, Tuple
 from enum import Enum, unique, auto
 from qce_interp.utilities.geometric_definitions import Vec2D, Polygon, euclidean_distance
@@ -60,13 +61,14 @@ class IQAxesFormat(IAxesFormat):
         axes.set_aspect('equal', adjustable='box')
         axes.set_axisbelow(True)  # Puts grid on background
 
-        # Set major tick locator to 0.5 and minor ticks to off
-        axes.xaxis.set_major_locator(ticker.MultipleLocator(0.5))
-        axes.yaxis.set_major_locator(ticker.MultipleLocator(0.5))
+        nr_ticks: int = 5
+        # Set the locator for both x and y axes to ensure 5 ticks
+        axes.xaxis.set_major_locator(ticker.MaxNLocator(nbins=nr_ticks))
+        axes.yaxis.set_major_locator(ticker.MaxNLocator(nbins=nr_ticks))
+        # Set minor ticks to off
         axes.xaxis.set_minor_locator(ticker.NullLocator())
         axes.yaxis.set_minor_locator(ticker.NullLocator())
         return axes
-
     # endregion
 
     # region Static Class Methods
@@ -75,6 +77,31 @@ class IQAxesFormat(IAxesFormat):
         """:return: Default AxesFormat instance."""
         return AxesFormat()
     # endregion
+
+
+def determine_axes_limits(state_classifier: StateAcquisitionContainer) -> Tuple[float, float, float, float]:
+    """
+    Compares maximum shot values with discrete selection of axes limits.
+    Chooses appropriate axes limit for given data.
+    :param state_classifier: State acquisition container, containing single-shot data.
+    :return: Tuple of 4 limits (min_x, max_x, min_y, max_y).
+    """
+    all_shots: NDArray[np.complex_] = state_classifier.concatenated_shots
+    maximum_limit: float = max(
+        abs(min(all_shots.real)),
+        abs(max(all_shots.real)),
+        abs(min(all_shots.imag)),
+        abs(max(all_shots.imag)),
+    )
+    # Default
+    axes_limit: float = 1.0
+    possible_axes_limits: List[float] = [0.1, 0.25, 0.5, 1.0, 2.0]
+    for possible_axes_limit in possible_axes_limits:
+        margin_percentage: float = 0.9  # Maximum (axes) limit should be less than 90% of total axes limit
+        if maximum_limit < margin_percentage * possible_axes_limit:
+            axes_limit = possible_axes_limit
+            break
+    return -axes_limit, +axes_limit, -axes_limit, +axes_limit
 
 
 def plot_state_shots(state_classifier: StateAcquisitionContainer, **kwargs) -> IFigureAxesPair:
@@ -87,8 +114,7 @@ def plot_state_shots(state_classifier: StateAcquisitionContainer, **kwargs) -> I
     """
     # Data allocation
     mincnt = 1
-    min_x, max_x, min_y, max_y = -1, +1, -1, +1
-    extent: Tuple[float, float, float, float] = (min_x, max_x, min_y, max_y)
+    extent: Tuple[float, float, float, float] = determine_axes_limits(state_classifier=state_classifier)
     power_gamma: float = 0.45
 
     # Figures and Axes
