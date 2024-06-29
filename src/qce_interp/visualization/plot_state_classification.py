@@ -9,6 +9,7 @@ from qce_interp.utilities.geometric_definitions import Vec2D, Polygon, euclidean
 from qce_interp.interface_definitions.intrf_state_classification import (
     StateAcquisitionContainer,
     StateBoundaryKey,
+    DirectedStateBoundaryKey,
     DecisionBoundaries,
     StateKey,
 )
@@ -210,7 +211,7 @@ def find_axes_intersection(start_point: Vec2D, other_point: Vec2D, ax: plt.Axes)
     return closest_intersection if closest_intersection else other_point
 
 
-def get_axes_intersection_lookup(decision_boundaries: DecisionBoundaries, ax: plt.Axes) -> Dict[StateBoundaryKey, Vec2D]:
+def get_axes_intersection_lookup(decision_boundaries: DecisionBoundaries, ax: plt.Axes) -> Dict[DirectedStateBoundaryKey, Vec2D]:
     """
     Creates a lookup for intersection points of decision boundaries with axes.
 
@@ -219,14 +220,33 @@ def get_axes_intersection_lookup(decision_boundaries: DecisionBoundaries, ax: pl
     :return: Dictionary mapping boundary keys to intersection points.
     """
     # Data allocation
-    result: Dict[StateBoundaryKey, Vec2D] = {}
+    result: Dict[DirectedStateBoundaryKey, Vec2D] = {}
     center: Vec2D = decision_boundaries.mean
     boundary_keys: List[StateBoundaryKey] = list(decision_boundaries.boundary_lookup.keys())
 
-    for boundary_key in boundary_keys:
+    continues_boundary: bool = len(boundary_keys) == 1
+    if continues_boundary:
+        boundary_key: StateBoundaryKey = boundary_keys[0]
+        # Main intersection
         boundary_point: Vec2D = decision_boundaries.get_boundary(key=boundary_key)
         intersection_point: Vec2D = find_axes_intersection(start_point=center, other_point=boundary_point, ax=ax)
-        result[boundary_key] = intersection_point
+        directed_boundary_key: DirectedStateBoundaryKey = DirectedStateBoundaryKey(state_a=boundary_key.state_a, state_b=boundary_key.state_b)
+        result[directed_boundary_key] = intersection_point
+        # Opposite (rotated) intersection
+        rotated_boundary_point = rotation_point_180_degrees(boundary_point, center)
+        opposite_intersection_point: Vec2D = find_axes_intersection(start_point=center, other_point=rotated_boundary_point, ax=ax)
+        opposite_directed_boundary_key: DirectedStateBoundaryKey = DirectedStateBoundaryKey(state_a=boundary_key.state_b, state_b=boundary_key.state_a)
+        result[opposite_directed_boundary_key] = opposite_intersection_point
+    else:
+        for boundary_key in boundary_keys:
+            # Main intersection
+            boundary_point: Vec2D = decision_boundaries.get_boundary(key=boundary_key)
+            intersection_point: Vec2D = find_axes_intersection(start_point=center, other_point=boundary_point, ax=ax)
+            directed_boundary_key: DirectedStateBoundaryKey = DirectedStateBoundaryKey(state_a=boundary_key.state_a, state_b=boundary_key.state_b)
+            opposite_directed_boundary_key: DirectedStateBoundaryKey = DirectedStateBoundaryKey(state_a=boundary_key.state_b, state_b=boundary_key.state_a)
+            # Insert same intersection point for both directions (mimics non-directional lookup)
+            result[directed_boundary_key] = intersection_point
+            result[opposite_directed_boundary_key] = intersection_point
 
     return result
 
@@ -270,6 +290,9 @@ def filter_vertices_within_smaller_angle(center: Vec2D, intersection1: Vec2D, in
     # Determine the direction of the smaller angle (clockwise or counter-clockwise)
     cross_product = np.cross(vec1, vec2)
     smaller_angle_is_ccw = cross_product > 0
+    # Guard clause, if cross product is very small (aka vec1 and vec2 are almost parallel), set True.
+    if abs(cross_product) < 1e-16:
+        smaller_angle_is_ccw = True
 
     # Filter the vertices within the smaller angle
     filtered_vertices = []
@@ -291,6 +314,14 @@ def filter_vertices_within_smaller_angle(center: Vec2D, intersection1: Vec2D, in
     return filtered_vertices
 
 
+def rotation_point_180_degrees(point: Vec2D, center: Vec2D) -> Vec2D:
+    """:return: Rotated (180 degree) point around center."""
+    translated_point: Vec2D = point - center
+    rotated_point: Vec2D = - 1 * translated_point
+    result_point: Vec2D = rotated_point + center
+    return result_point
+
+
 def plot_decision_boundary(decision_boundaries: DecisionBoundaries, **kwargs) -> IFigureAxesPair:
     """
     Plots decision boundaries for state classification.
@@ -305,13 +336,26 @@ def plot_decision_boundary(decision_boundaries: DecisionBoundaries, **kwargs) ->
 
     # Figures and Axes
     fig, ax = construct_subplot(**kwargs)
-    boundary_intersections: Dict[StateBoundaryKey, Vec2D] = get_axes_intersection_lookup(decision_boundaries=decision_boundaries, ax=ax)
+    boundary_intersections: Dict[DirectedStateBoundaryKey, Vec2D] = get_axes_intersection_lookup(decision_boundaries=decision_boundaries, ax=ax)
 
     # Store the current limits
     original_xlim = ax.get_xlim()
     original_ylim = ax.get_ylim()
-    for boundary_key in boundary_keys:
-        intersection_point: Vec2D = boundary_intersections[boundary_key]
+    intersection_points: List[Vec2D] = []
+    two_state_classification: bool = len(boundary_keys) == 1
+    if two_state_classification:
+        for boundary_key in boundary_keys:
+            intersection_points.extend([
+                boundary_intersections[DirectedStateBoundaryKey(boundary_key.state_a, boundary_key.state_b)],
+                boundary_intersections[DirectedStateBoundaryKey(boundary_key.state_b, boundary_key.state_a)]
+            ])
+    else:
+        for boundary_key in boundary_keys:
+            intersection_points.extend([
+                boundary_intersections[DirectedStateBoundaryKey(boundary_key.state_a, boundary_key.state_b)],
+            ])
+
+    for intersection_point in intersection_points:
         ax.plot(
             [center.x, intersection_point.x],
             [center.y, intersection_point.y],
@@ -341,7 +385,11 @@ def plot_decision_region(state_classifier: StateAcquisitionContainer, **kwargs) 
 
     # Figures and Axes
     fig, ax = construct_subplot(**kwargs)
-    boundary_intersections: Dict[StateBoundaryKey, Vec2D] = get_axes_intersection_lookup(decision_boundaries=decision_boundaries, ax=ax)
+    boundary_intersections: Dict[DirectedStateBoundaryKey, Vec2D] = get_axes_intersection_lookup(
+        decision_boundaries=decision_boundaries,
+        ax=ax,
+    )
+    two_state_classification: bool = len(boundary_keys) == 1
 
     # Store the current limits
     original_xlim = ax.get_xlim()
@@ -350,18 +398,29 @@ def plot_decision_region(state_classifier: StateAcquisitionContainer, **kwargs) 
     rectangle_vertices: List[Vec2D] = get_axes_vertices(ax=ax)
     for state in state_classifier.state_acquisition_lookup.keys():
         color = STATE_COLORMAP[state](1.0)
+
         neighbor_boundary_keys: List[StateBoundaryKey] = get_neighboring_boundary_keys(
             state=state,
             boundary_keys=boundary_keys,
         )
-        intersection1, intersection2 = boundary_intersections[neighbor_boundary_keys[0]], boundary_intersections[
-            neighbor_boundary_keys[1]]
+        if two_state_classification:
+            boundary_key: StateBoundaryKey = neighbor_boundary_keys[0]
+            opposite_state = boundary_key.state_a if state == boundary_key.state_b else boundary_key.state_b
+            boundary1 = DirectedStateBoundaryKey(state_a=state, state_b=opposite_state)
+            boundary2 = DirectedStateBoundaryKey(state_a=opposite_state, state_b=state)
+        else:
+            boundary1 = DirectedStateBoundaryKey(state_a=neighbor_boundary_keys[0].state_a, state_b=neighbor_boundary_keys[0].state_b)
+            boundary2 = DirectedStateBoundaryKey(state_a=neighbor_boundary_keys[1].state_a, state_b=neighbor_boundary_keys[1].state_b)
+        intersection1: Vec2D = boundary_intersections[boundary1]
+        intersection2: Vec2D = boundary_intersections[boundary2]
+
         vertices: List[Vec2D] = filter_vertices_within_smaller_angle(
             center=center,
             intersection1=intersection1,
             intersection2=intersection2,
             vertices=rectangle_vertices,
         )
+
         polygon: Polygon = Polygon(vertices=[intersection2, center, intersection1] + vertices)
 
         vertices: np.ndarray = np.asarray([vertex.to_tuple() for vertex in polygon.get_convex_vertices()])
