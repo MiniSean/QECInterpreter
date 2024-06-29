@@ -199,14 +199,13 @@ def find_axes_intersection(start_point: Vec2D, other_point: Vec2D, ax: plt.Axes)
             if min_y <= y_at_x <= max_y:
                 potential_intersections.append(Vec2D(x=x_limit, y=y_at_x))
 
-    # Find the closest intersection to other_point
+    # Find the closest intersection to other_point (with respect to center)
     closest_intersection = None
-    min_distance_to_other = float('inf')
     for intersection in potential_intersections:
         distance_to_other = euclidean_distance(intersection, other_point)
-        if distance_to_other < min_distance_to_other:
+        distance_to_center = euclidean_distance(intersection, start_point)
+        if distance_to_other < distance_to_center:
             closest_intersection = intersection
-            min_distance_to_other = distance_to_other
 
     return closest_intersection if closest_intersection else other_point
 
