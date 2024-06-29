@@ -71,17 +71,35 @@ class StateBoundaryKey:
 
 
 @dataclass(frozen=True)
+class DirectedStateBoundaryKey(StateBoundaryKey):
+    """Data class, containing ordered state-keys."""
+
+    # region Class Methods
+    def __hash__(self):
+        """
+        Sorts individual state hashes such that the order IS maintained.
+        Making hash comparison dependent of order.
+        """
+        return hash((self.state_a.__hash__(), self.state_b.__hash__()))
+    # endregion
+
+
+@dataclass(frozen=True)
 class DecisionBoundaries:
     """Data class, containing decision boundaries based on states."""
     boundary_lookup: Dict[StateBoundaryKey, Vec2D]
     _discriminator: LinearDiscriminantAnalysis
     _state_lookup: Dict[StateKey, int]
     """Lookup dictionary that maps state key to discriminator prediction index."""
+    _mean: Optional[Vec2D] = field(default=None)
+    """Explicit specification of boundary means, necessary when handling 2-state classification."""
 
     # region Class Properties
     @property
     def mean(self) -> Vec2D:
         """:return: Mean IQ-vector based on state boundaries."""
+        if self._mean is not None:
+            return self._mean
         boundary_points: np.ndarray = np.asarray([point.to_vector() for point in self.boundary_lookup.values()])
         mean_point: np.ndarray = np.mean(boundary_points, axis=0)
         return Vec2D.from_vector(mean_point)
@@ -192,15 +210,9 @@ class DecisionBoundaries:
 
         # Handling different number of classes
         num_classes = len(container.state_acquisition_lookup)
-        if num_classes == 2:
-            # In binary classification, there's only one discriminant function
-            # The second "virtual" coefficient is the negative of the first
-            coef_values = [discriminator.coef_[0], -discriminator.coef_[0]]
-            intercept_values = [discriminator.intercept_[0], -discriminator.intercept_[0]]
-        else:
-            # In multi-class classification, use the provided coefficients and intercepts
-            coef_values = discriminator.coef_
-            intercept_values = discriminator.intercept_
+        # In multi-class classification, use the provided coefficients and intercepts
+        coef_values = discriminator.coef_
+        intercept_values = discriminator.intercept_
 
         # Map coefficients
         coef_lookup: Dict[StateKey, Vec2D] = {state: Vec2D.from_vector(value) for state, value in
@@ -212,6 +224,22 @@ class DecisionBoundaries:
         # Create an iterator for all unique combinations of StateKey values, excluding same-key pairs
         intersection_lookup: Dict[StateBoundaryKey, Vec2D] = {}
         states: List[StateKey] = list(container.state_acquisition_lookup.keys())
+        if num_classes == 2:
+            state_a = states[0]
+            state_b = states[1]
+            boundary_key: StateBoundaryKey = StateBoundaryKey(state_a=state_a, state_b=state_b)
+            intersection_lookup[boundary_key] = DecisionBoundaries._calculate_intersection_binary_case(
+                coef1=coef_lookup[state_a],
+                intercept1=intercept_lookup[state_a],
+            )
+            center: Vec2D = 0.5 * (container.state_acquisition_lookup[state_a].center + container.state_acquisition_lookup[state_b].center)
+            return DecisionBoundaries(
+                boundary_lookup=intersection_lookup,
+                _discriminator=discriminator,
+                _state_lookup=state_lookup,
+                _mean=center,
+            )
+
         for state_a, state_b in itertools.combinations(states, 2):
             boundary_key: StateBoundaryKey = StateBoundaryKey(state_a=state_a, state_b=state_b)
             intersection_lookup[boundary_key] = DecisionBoundaries._calculate_intersection(
@@ -248,6 +276,15 @@ class DecisionBoundaries:
             x=_x,
             y=_y,
         )
+
+    @staticmethod
+    def _calculate_intersection_binary_case(coef1: Vec2D, intercept1: float):
+        """
+        :return: Intersection point of single linear equations defined by coefficients and intercepts.
+        """
+        x_intercept = -intercept1 / coef1.x if coef1.x != 0 else np.inf
+        y_intercept = -intercept1 / coef1.y if coef1.y != 0 else np.inf
+        return Vec2D(x=x_intercept, y=y_intercept)
     # endregion
 
 
