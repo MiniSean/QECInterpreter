@@ -32,6 +32,15 @@ class Vec2D:
         if isinstance(other, Vec2D):
             return Vec2D(x=self.x + other.x, y=self.y + other.y)
         raise NotImplemented(f"Addition with anything other than {Vec2D} is not implemented.")
+
+    def __mul__(self, other):
+        return Vec2D(x=self.x.__mul__(other), y=self.y.__mul__(other))
+
+    def __rmul__(self, other):
+        return Vec2D(x=self.x.__rmul__(other), y=self.y.__rmul__(other))
+
+    def __sub__(self, other):
+        return self.__add__(-1 * other)
     # endregion
 
 
