@@ -96,7 +96,7 @@ def determine_axes_limits(state_classifier: StateAcquisitionContainer) -> Tuple[
     )
     # Default
     axes_limit: float = 1.0
-    possible_axes_limits: List[float] = [0.1, 0.25, 0.5, 1.0, 2.0]
+    possible_axes_limits: List[float] = [0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.0]
     for possible_axes_limit in possible_axes_limits:
         margin_percentage: float = 0.9  # Maximum (axes) limit should be less than 90% of total axes limit
         if maximum_limit < margin_percentage * possible_axes_limit:
