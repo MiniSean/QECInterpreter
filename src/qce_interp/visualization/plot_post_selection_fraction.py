@@ -1,6 +1,7 @@
 # -------------------------------------------
 # Module for visualizing post-selection fraction.
 # -------------------------------------------
+import matplotlib.pyplot as plt
 import numpy as np
 from numpy.typing import NDArray
 from typing import List, Tuple
@@ -152,7 +153,7 @@ def plot_post_selection_fraction_composite(error_identifier: IErrorDetectionIden
     )
 
     # Default
-    minimum_limit = min(ax.get_ylim())
+    minimum_limit = get_minimum_plotted_value(ax)
     axes_limit: float = 1e-1
     possible_axes_limits: List[float] = [1e-1, 1e-2, 1e-3, 1e-4, 1e-5]
     for possible_axes_limit in possible_axes_limits:
@@ -167,3 +168,11 @@ def plot_post_selection_fraction_composite(error_identifier: IErrorDetectionIden
     ax.set_yscale('log')
 
     return fig, ax
+
+
+def get_minimum_plotted_value(ax: plt.Axes) -> float:
+    result = float('inf')
+    for line in ax.get_lines():
+        y_data = line.get_ydata()
+        result = min(result, np.min(y_data))
+    return result
