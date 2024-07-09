@@ -32,8 +32,19 @@ def get_fit_plot_arguments(x_array: np.ndarray, y_array: np.ndarray) -> Tuple[Tu
         # log_intercept = 0  # log(1.0) = 0
         return slope * x + log_intercept
 
+    # Exclude points where y_array has 0 values
+    mask_zero = (y_array != 0)
+    x_array_filtered: np.ndarray = x_array[mask_zero]
+    y_array_filtered: np.ndarray = y_array[mask_zero]
+
+    # Exclude points where long(y_array) has NaN or INF values
+    y_log_array: np.ndarray = np.log(y_array_filtered)
+    mask_finite = np.isfinite(y_log_array)
+    x_array_filtered = x_array_filtered[mask_finite]
+    y_log_array_filtered: np.ndarray = y_log_array[mask_finite]
+
     # Perform the curve fit
-    response = optimize.curve_fit(log_linear_func, x_array, np.log(y_array))
+    response = optimize.curve_fit(log_linear_func, x_array_filtered, y_log_array_filtered)
     popt = response[0]
     pcov = response[1]
     slope = popt[0]
@@ -90,7 +101,8 @@ def plot_post_selection_fraction(error_identifier: IErrorDetectionIdentifier, qe
         **plot_kwargs,
     )
 
-    if fit_fraction_rate:
+    contains_nan_values: bool = np.isnan(fraction).any()
+    if fit_fraction_rate:  # and not contains_nan_values:
         args, kwargs = get_fit_plot_arguments(x_array=qec_rounds, y_array=fraction)
         ax.plot(
             *args,
@@ -154,8 +166,8 @@ def plot_post_selection_fraction_composite(error_identifier: IErrorDetectionIden
 
     # Default
     minimum_limit = get_minimum_plotted_value(ax)
-    axes_limit: float = 1e-1
     possible_axes_limits: List[float] = [1e-1, 1e-2, 1e-3, 1e-4, 1e-5]
+    axes_limit: float = possible_axes_limits[-1]
     for possible_axes_limit in possible_axes_limits:
         margin_percentage: float = 0.9  # Maximum (axes) limit should be less than 90% of total axes limit
         if minimum_limit > margin_percentage * possible_axes_limit:

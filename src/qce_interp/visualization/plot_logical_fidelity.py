@@ -7,6 +7,7 @@ from tqdm import tqdm
 import numpy as np
 from scipy.optimize import curve_fit
 from qce_circuit.language import InitialStateContainer
+from qce_interp.utilities.custom_exceptions import ZeroClassifierShotsException
 from qce_interp.interface_definitions.intrf_syndrome_decoder import IDecoder
 from qce_interp.visualization.plotting_functionality import (
     construct_subplot,
@@ -45,7 +46,7 @@ def fit_function(x: np.ndarray, error: float, x_0: float) -> np.ndarray:
     return 0.5 * (1 + (1 - 2 * error) ** (x - x_0))
 
 
-def get_fit_plot_arguments(x_array: np.ndarray, y_array: np.ndarray, exclude_first_n: int = 0) -> Tuple[np.ndarray, dict]:
+def get_fit_plot_arguments(x_array: np.ndarray, y_array: np.ndarray, exclude_first_n: int = 0) -> Tuple[tuple, dict]:
     """
     Perform curve fitting on given data arrays and prepare plot arguments.
 
@@ -57,13 +58,29 @@ def get_fit_plot_arguments(x_array: np.ndarray, y_array: np.ndarray, exclude_fir
     :type exclude_first_n: int
     :return: A tuple containing the x values for plotting and a dictionary with plotting arguments,
              including line style, marker, color, and label with fitted parameters.
-    :rtype: Tuple[np.ndarray, dict]
+    :rtype: Tuple[*args, **kwargs]
     """
     # Bounds for the parameters (assuming error is between 0 and 0.5 and x_0 is within some range)
     bounds = ([0, -np.inf], [0.5, np.inf])
 
+    # Exclude the first N points
+    x_array_filtered: np.ndarray = x_array[exclude_first_n:]
+    y_array_filtered: np.ndarray = y_array[exclude_first_n:]
+
+    # Exclude points where y_array has NaN values
+    mask = ~np.isnan(y_array_filtered)
+    x_array_filtered = x_array_filtered[mask]
+    y_array_filtered = y_array_filtered[mask]
+
+    # Check if there are enough points left after filtering
+    min_points: int = 3
+    if len(x_array_filtered) < min_points or len(y_array_filtered) < min_points:
+        return (np.asarray([]), np.asarray([])), dict()
+
     # Perform curve fitting
-    popt, pcov = curve_fit(fit_function, x_array[exclude_first_n:], y_array[exclude_first_n:], bounds=bounds)
+    response = curve_fit(fit_function, x_array_filtered, y_array_filtered, bounds=bounds)
+    popt = response[0]
+    pcov = response[1]
     fitted_error, fitted_x0 = popt
     perr = np.sqrt(np.diag(pcov))
 
@@ -94,10 +111,14 @@ def plot_fidelity(decoder: IDecoder, included_rounds: List[int], target_state: I
     """
     # Data allocation
     x_array: np.ndarray = np.asarray(included_rounds)
-    y_array: np.ndarray = np.array([
-        decoder.get_fidelity(x, target_state=target_state.as_array)
-        for x in tqdm(x_array, desc=f"Processing {decoder.__class__.__name__} Decoder")
-    ])
+    y_array: np.ndarray = np.full_like(x_array, np.nan, dtype=np.float_)
+    for i, x in tqdm(enumerate(x_array), desc=f"Processing {decoder.__class__.__name__} Decoder", total=len(x_array)):
+        try:
+            value: float = decoder.get_fidelity(x, target_state=target_state.as_array)
+        except ZeroClassifierShotsException:
+            value = np.nan
+        y_array[i] = value
+
     color: str = kwargs.pop('color', orange_red_purple_shades[0])
     label_format: LabelFormat = kwargs.get(SubplotKeywordEnum.LABEL_FORMAT.value, LabelFormat(
         x_label='QEC-Rounds',
@@ -116,7 +137,8 @@ def plot_fidelity(decoder: IDecoder, included_rounds: List[int], target_state: I
         color=color,
         label=label,
     )
-    if fit_error_rate:
+    contains_nan_values: bool = np.isnan(y_array).any()
+    if fit_error_rate and not contains_nan_values:
         code_distance: int = len(target_state.as_array)
         exclude_first_n: int = code_distance
         if code_distance < 7:
