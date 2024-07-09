@@ -2,6 +2,7 @@ import unittest
 import numpy as np
 from numpy.testing import assert_array_equal
 import random
+from qce_interp.utilities.custom_exceptions import ZeroClassifierShotsException
 from qce_interp.interface_definitions.intrf_state_classification import (
     StateKey,
     StateAcquisition,
@@ -10,6 +11,7 @@ from qce_interp.interface_definitions.intrf_state_classification import (
     StateAcquisitionContainer,
     IStateClassifierContainer,
     ShotsClassifierContainer,
+    StateClassifierContainer,
     ParityType,
 )
 from qce_interp.utilities.geometric_definitions import Vec2D
@@ -21,7 +23,25 @@ class StateAcquisitionTestCase(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         """Set up for all test cases"""
-        pass
+        cls.acquisition_container = StateAcquisitionContainer(
+            state_acquisition_lookup={
+                StateKey.STATE_0: StateAcquisition(
+                    state=StateKey.STATE_0,
+                    shots=np.asarray([-1.0 + 0j, -1.0 + 0.1j, -1.0 - 0.1j]),
+                ),
+                StateKey.STATE_1: StateAcquisition(
+                    state=StateKey.STATE_1,
+                    shots=np.asarray([+1.0 + 0j, +1.0 + 0.1j, +1.0 - 0.1j]),
+                ),
+                StateKey.STATE_2: StateAcquisition(
+                    state=StateKey.STATE_2,
+                    shots=np.asarray([-0.1 + 1.0j, +0.0 + 1.0j, +0.1 + 1.0j]),
+                )
+            }
+        )
+        cls.default_boundaries = DecisionBoundaries.from_acquisition_container(
+            container=cls.acquisition_container
+        )
 
     def setUp(self) -> None:
         """Set up for every test case"""
@@ -57,6 +77,16 @@ class StateAcquisitionTestCase(unittest.TestCase):
         key1 = StateBoundaryKey(state_a=StateKey.STATE_0, state_b=StateKey.STATE_1)
         key2 = StateBoundaryKey(state_a=StateKey.STATE_1, state_b=StateKey.STATE_0)
         self.assertEqual(key1, key2)
+
+    def test_zero_shot_classification_error(self):
+        """Tests what happens when trying to classify with zero shots."""
+        # Is expected to raise exception when trying to perform classification with zero shots.
+        shots_container: ShotsClassifierContainer = ShotsClassifierContainer(
+            shots=np.asarray([]),
+            decision_boundaries=self.default_boundaries,
+        )
+        with self.assertRaises(ZeroClassifierShotsException):
+            state_container: StateClassifierContainer = shots_container.state_classifier
     # endregion
 
     # region Teardown

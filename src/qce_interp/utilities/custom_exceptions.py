@@ -19,3 +19,9 @@ class QECCycleNotIncludedException(Exception):
     """
     Raised when requested QEC-cycle is not included in the data.
     """
+
+
+class ZeroClassifierShotsException(Exception):
+    """
+    Raised when state-classification is attempted with zero (0) classification shots.
+    """

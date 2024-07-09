@@ -9,7 +9,10 @@ import numpy as np
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from numpy.typing import NDArray
 from typing import List, Dict, Optional, Callable, TypeVar
-from qce_interp.utilities.custom_exceptions import InterfaceMethodException
+from qce_interp.utilities.custom_exceptions import (
+    InterfaceMethodException,
+    ZeroClassifierShotsException,
+)
 from qce_interp.utilities.geometric_definitions import Vec2D
 from qce_circuit.structure.acquisition_indexing.intrf_stabilizer_index_kernel import StateKey
 
@@ -618,6 +621,10 @@ class ShotsClassifierContainer(IStateClassifierContainer):
     @property
     def state_classifier(self) -> StateClassifierContainer:
         """:return: Pure state classifier based on self."""
+        # Guard clause, if shots is empty, raise exception
+        if self.shots.size == 0:
+            raise ZeroClassifierShotsException(f"Array size of shots used to perform state-classification is {self.shots.size}. Perhaps all shots are filtered by post-selection method?")
+
         return StateClassifierContainer(
             state_classification=self._process_tensor(self.shots, self.decision_boundaries.get_binary_predictions),
             _expected_parity=self.expected_parity,
