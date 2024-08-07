@@ -28,7 +28,7 @@ class ParityType(Enum):
 class StateAcquisition:
     """Data class, containing (complex) acquisition information, together with a state key."""
     state: StateKey
-    shots: NDArray[np.complex_]
+    shots: NDArray[np.complex128]
 
     # region Class Properties
     @property
@@ -140,7 +140,7 @@ class DecisionBoundaries:
             return None
         return self.boundary_lookup[boundary_key]
 
-    def get_binary_predictions(self, shots: NDArray[np.complex_]) -> NDArray[np.int_]:
+    def get_binary_predictions(self, shots: NDArray[np.complex128]) -> NDArray[np.int_]:
         """
         NOTE: Forces classification of element in group 1 or 2, disregarding other groups.
         NOTE: Returns integer prediction value, can be mapped to state-enum using self.prediction_index_to_state_lookup.
@@ -158,7 +158,7 @@ class DecisionBoundaries:
         state_indices: NDArray[np.int_] = np.where(prob_group_1 > prob_group_2, 0, 1)  # 0 for group 1, 1 for group 2
         return state_indices
 
-    def get_predictions(self, shots: NDArray[np.complex_]) -> NDArray[np.int_]:
+    def get_predictions(self, shots: NDArray[np.complex128]) -> NDArray[np.int_]:
         """
         NOTE: Returns integer prediction value, can be mapped to state-enum using self.prediction_index_to_state_lookup.
         :return: Array-like of State key predictions based on shots discrimination.
@@ -167,20 +167,19 @@ class DecisionBoundaries:
         state_indices: NDArray[np.int_] = self._discriminator.predict(shot_reshaped)  # 1 indexed
         return state_indices
 
-    def get_prediction(self, shot: np.complex_) -> StateKey:
+    def get_prediction(self, shot: np.complex128) -> StateKey:
         """:return: State key prediction based on shot discrimination."""
         state_indices: NDArray[np.int_] = self.get_predictions(shots=np.asarray([shot]))
         int_to_enum = self.prediction_index_to_state_lookup
         return int_to_enum[state_indices[0]]
 
-    def get_fidelity(self, shots: NDArray[np.complex_], assigned_state: StateKey) -> float:
+    def get_fidelity(self, shots: NDArray[np.complex128], assigned_state: StateKey) -> float:
         """:return: Assignment fidelity defined as the probability of shots being part of assigned state."""
         shots_reshaped: NDArray[np.float_] = StateAcquisitionContainer.complex_to_real_imag(shots)
         state_indices: NDArray[np.int_] = self._discriminator.predict(shots_reshaped)  # 1 indexed
         return float(np.mean(state_indices == self._state_lookup[assigned_state]))
 
-    def post_select_on(self, shots_to_filter: NDArray[np.complex_], conditional_shots: NDArray[np.complex_],
-                       conditional_state: StateKey) -> NDArray[np.complex_]:
+    def post_select_on(self, shots_to_filter: NDArray[np.complex128], conditional_shots: NDArray[np.complex128], conditional_state: StateKey) -> NDArray[np.complex128]:
         """:return: Filtered shots based on conditional shots (of same length) and conditional state."""
         # Guard clause, if conditional shots are empty, return shots without filtering
         if len(conditional_shots) == 0:
@@ -307,9 +306,9 @@ class StateAcquisitionContainer:
         )
 
     @property
-    def concatenated_shots(self) -> NDArray[np.complex_]:
+    def concatenated_shots(self) -> NDArray[np.complex128]:
         """:return: Array-like of (complex-valued) concatenated acquisition shots."""
-        shots: List[NDArray[np.complex_]] = [value.shots for value in self.state_acquisition_lookup.values()]
+        shots: List[NDArray[np.complex128]] = [value.shots for value in self.state_acquisition_lookup.values()]
         return np.concatenate(shots)
 
     @property
@@ -379,7 +378,7 @@ class StateAcquisitionContainer:
         return complex_data  # .reshape(-1, 1)
 
     @staticmethod
-    def get_threshold_estimate(shots_0: NDArray[np.complex_], shots_1: NDArray[np.complex_]) -> float:
+    def get_threshold_estimate(shots_0: NDArray[np.complex128], shots_1: NDArray[np.complex128]) -> float:
         """
         Estimate 0-1 threshold based on x-axes projection.
 
@@ -606,7 +605,7 @@ class StateClassifierContainer(IStateClassifierContainer):
 @dataclass(frozen=True)
 class ShotsClassifierContainer(IStateClassifierContainer):
     """Data class, containing classified states based on (complex) acquisition and decision boundaries."""
-    shots: NDArray[np.complex_]
+    shots: NDArray[np.complex128]
     decision_boundaries: DecisionBoundaries
     _expected_parity: ParityType = field(default=ParityType.EVEN)
 
