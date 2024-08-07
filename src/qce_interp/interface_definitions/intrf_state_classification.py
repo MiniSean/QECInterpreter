@@ -146,7 +146,7 @@ class DecisionBoundaries:
         NOTE: Returns integer prediction value, can be mapped to state-enum using self.prediction_index_to_state_lookup.
         :return: Array-like of State key predictions based on shots discrimination.
         """
-        shot_reshaped: NDArray[np.float_] = StateAcquisitionContainer.complex_to_real_imag(shots)
+        shot_reshaped: NDArray[np.float64] = StateAcquisitionContainer.complex_to_real_imag(shots)
         # Step 1: Predict probabilities
         probabilities: np.ndarray = self._discriminator.predict_proba(shot_reshaped)
         # Step 2: Compare probabilities for groups 1 and 2
@@ -163,7 +163,7 @@ class DecisionBoundaries:
         NOTE: Returns integer prediction value, can be mapped to state-enum using self.prediction_index_to_state_lookup.
         :return: Array-like of State key predictions based on shots discrimination.
         """
-        shot_reshaped: NDArray[np.float_] = StateAcquisitionContainer.complex_to_real_imag(shots)
+        shot_reshaped: NDArray[np.float64] = StateAcquisitionContainer.complex_to_real_imag(shots)
         state_indices: NDArray[np.int_] = self._discriminator.predict(shot_reshaped)  # 1 indexed
         return state_indices
 
@@ -175,7 +175,7 @@ class DecisionBoundaries:
 
     def get_fidelity(self, shots: NDArray[np.complex128], assigned_state: StateKey) -> float:
         """:return: Assignment fidelity defined as the probability of shots being part of assigned state."""
-        shots_reshaped: NDArray[np.float_] = StateAcquisitionContainer.complex_to_real_imag(shots)
+        shots_reshaped: NDArray[np.float64] = StateAcquisitionContainer.complex_to_real_imag(shots)
         state_indices: NDArray[np.int_] = self._discriminator.predict(shots_reshaped)  # 1 indexed
         return float(np.mean(state_indices == self._state_lookup[assigned_state]))
 
@@ -185,7 +185,7 @@ class DecisionBoundaries:
         if len(conditional_shots) == 0:
             return shots_to_filter
 
-        conditional_shots_reshaped: NDArray[np.float_] = StateAcquisitionContainer.complex_to_real_imag(
+        conditional_shots_reshaped: NDArray[np.float64] = StateAcquisitionContainer.complex_to_real_imag(
             conditional_shots)
         state_indices: NDArray[np.int_] = self._discriminator.predict(conditional_shots_reshaped)  # 1 indexed
         conditional_index: int = self._state_lookup[conditional_state]
@@ -401,7 +401,7 @@ class StateAcquisitionContainer:
 class AssignmentFidelityMatrix:
     """Data class, containing assignment fidelity matrix and array-like of state-key."""
     state_keys: List[StateKey]
-    matrix: NDArray[np.float_]
+    matrix: NDArray[np.float64]
 
     # region Class Methods
     @classmethod

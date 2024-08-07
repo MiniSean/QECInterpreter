@@ -239,7 +239,7 @@ class DataManager(IDataManager):
 
         for qubit_id in tqdm(involved_qubit_ids, desc='Processing data file'):
             channel_identifier: IAcquisitionChannelIdentifier = channel_identifier_lookup[qubit_id]
-            raw_shots: NDArray[np.float_] = data_dict[cls.data_key()][:, channel_identifier.channel_indices]
+            raw_shots: NDArray[np.float64] = data_dict[cls.data_key()][:, channel_identifier.channel_indices]
             raw_complex_shots: NDArray[np.complex128] = StateAcquisitionContainer.real_imag_to_complex(raw_shots)
 
             # Qutrit calibration points
