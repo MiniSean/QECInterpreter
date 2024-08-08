@@ -8,11 +8,12 @@ from qce_interp.definitions import UNITDATA_DIR
 from qce_interp.interface_definitions.intrf_channel_identifier import QubitIDObj
 from qce_interp.interface_definitions.intrf_stabilizer_index_kernel import IStabilizerIndexingKernel
 from qce_interp.data_manager import DataManager
-from qce_interp.interface_definitions.intrf_state_classification import ParityType
+from qce_interp.interface_definitions.intrf_state_classification import ParityType, StateClassifierContainer
 from qce_interp.interface_definitions.intrf_error_identifier import ErrorDetectionIdentifier
 from qce_interp.interface_definitions.intrf_syndrome_decoder import ISyndromeDecoder
 from qce_interp.decoder_examples.lookup_table import Distance5LookupTableDecoder
 from qce_circuit.connectivity.connectivity_surface_code import Surface17Layer
+from qce_circuit.structure.acquisition_indexing.kernel_repetition_code import RepetitionExperimentKernel
 
 
 class DefectIdentifierTestCase(unittest.TestCase):
@@ -278,6 +279,56 @@ class ErrorDetectionIdentifierTestCase(unittest.TestCase):
             n_post_selected,
             msg=f"Expects the total number of detected target- and off-target states to be equal to the number of post-selected experiment repetitions.  Instead {np.sum(fraction_target_state)} + {np.sum(fraction_off_target_state)} != {n_post_selected}"
         )
+    # endregion
+
+    # region Teardown
+    @classmethod
+    def tearDownClass(cls) -> None:
+        """Closes any left over processes after testing"""
+        pass
+    # endregion
+
+
+class GeneralComputedParityTestCase(unittest.TestCase):
+    """
+    Covers both weight-2 and weight-4 computed parity calculations
+    """
+
+    # region Setup
+    @classmethod
+    def setUpClass(cls) -> None:
+        """Set up for all test cases"""
+        weight_two_error_identifier = ErrorDetectionIdentifier(
+            classifier_lookup={
+                QubitIDObj('D4'): StateClassifierContainer(
+                    state_classification=np.asarray([0, 1, 0, 1, 0], dtype=np.int_),
+                ),
+                QubitIDObj('Z1'): StateClassifierContainer(
+                    state_classification=np.asarray([0, 0, 0, 0, 0], dtype=np.int_),
+                    _expected_parity=ParityType.EVEN,
+                ),
+                QubitIDObj('D4'): StateClassifierContainer(
+                    state_classification=np.asarray([0, 1, 0, 1, 0], dtype=np.int_),
+                ),
+            },
+            index_kernel=RepetitionExperimentKernel(
+
+            ),
+            involved_qubit_ids=,
+            device_layout=Surface17Layer(),
+            qec_rounds=[5],
+            use_computational_parity=True,
+        )
+
+    def setUp(self) -> None:
+        """Set up for every test case"""
+        pass
+    # endregion
+
+    # region Test Cases
+    def test_default(self):
+        """Tests default True."""
+        self.assertTrue(True)
     # endregion
 
     # region Teardown
