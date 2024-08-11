@@ -831,7 +831,8 @@ class ErrorDetectionIdentifier(IErrorDetectionIdentifier):
             # Guard clause, if ancilla not in parity lookup, raise warning
             if ancilla_qubit_id not in parity_index_lookup:
                 raise InsufficientParityInformationException(f"Fails to calculate parity for {ancilla_qubit_id}."
-                                                             f" Check if all data qubit outcomes are provided.")
+                                                             f" Check if all data qubit outcomes are provided."
+                                                             f" Or if the correct parity_layout (ISurfaceCodeLayer) is used.")
 
             # Get the indices in 'array' corresponding to the current ancilla qubit
             indices = parity_index_lookup[ancilla_qubit_id]
