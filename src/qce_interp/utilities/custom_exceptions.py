@@ -19,3 +19,9 @@ class QECCycleNotIncludedException(Exception):
     """
     Raised when requested QEC-cycle is not included in the data.
     """
+
+
+class InsufficientParityInformationException(Exception):
+    """
+    Raised when parity can not be computed due to insufficient data.
+    """
