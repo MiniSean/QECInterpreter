@@ -5,7 +5,7 @@ from qce_circuit.language.intrf_declarative_circuit import (
     InitialStateContainer,
     InitialStateEnum,
 )
-from qce_circuit.connectivity.connectivity_surface_code import Surface17Layer
+from qce_circuit.library.repetition_code.repetition_code_connectivity import Repetition9Round6Code as Repetition17Layer
 from qce_circuit.addon_stim.noise_factory_manager import NoiseFactoryManager
 from qce_interp.simulated_data_manager import SimulatedDataManager, NoiselessFactoryManager
 from qce_interp.interface_definitions.intrf_error_identifier import IErrorDetectionIdentifier
@@ -39,14 +39,14 @@ class SimulatedDataManagerTestCase(unittest.TestCase):
             qec_rounds=rounds,
             involved_qubit_ids=involved_qubit_ids,
             initial_state=initial_state,
-            device_layout=Surface17Layer(),
+            device_layout=Repetition17Layer(),
             noise_factory=NoiselessFactoryManager(),
         )
         cls.manager_noisy = SimulatedDataManager.from_simulated_repetition_code(
             qec_rounds=rounds,
             involved_qubit_ids=involved_qubit_ids,
             initial_state=initial_state,
-            device_layout=Surface17Layer(),
+            device_layout=Repetition17Layer(),
             noise_factory=NoiseFactoryManager(),
         )
 
