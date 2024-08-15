@@ -144,11 +144,14 @@ def plot_fidelity(decoder: IDecoder, included_rounds: List[int], target_state: I
         if code_distance < 7:
             exclude_first_n = 2 * code_distance
 
-        args, kwargs = get_fit_plot_arguments(x_array=x_array, y_array=y_array, exclude_first_n=exclude_first_n)
-        ax.plot(
-            *args,
-            **kwargs,
-        )
+        try:
+            args, kwargs = get_fit_plot_arguments(x_array=x_array, y_array=y_array, exclude_first_n=exclude_first_n)
+            ax.plot(
+                *args,
+                **kwargs,
+            )
+        except RuntimeError:
+            pass
 
     ax.set_xlim([-0.1, ax.get_xlim()[1]])
     ax.set_ylim([0.45, 1.02])
