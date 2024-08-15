@@ -166,7 +166,7 @@ def plot_post_selection_fraction_composite(error_identifier: IErrorDetectionIden
 
     # Default
     minimum_limit = get_minimum_plotted_value(ax)
-    possible_axes_limits: List[float] = [1e-1, 1e-2, 1e-3, 1e-4, 1e-5]
+    possible_axes_limits: List[float] = [1e-2]
     axes_limit: float = possible_axes_limits[-1]
     for possible_axes_limit in possible_axes_limits:
         margin_percentage: float = 0.9  # Maximum (axes) limit should be less than 90% of total axes limit
