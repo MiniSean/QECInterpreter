@@ -2,7 +2,7 @@
 # Module for visualizing logical fidelity and error rate.
 # With additional details to defect rates and post selection.
 # -------------------------------------------
-from typing import List
+from typing import List, Callable
 from qce_interp.interface_definitions.intrf_error_identifier import IErrorDetectionIdentifier
 from qce_interp.interface_definitions.intrf_syndrome_decoder import IDecoder
 from qce_interp.decoder_examples.mwpm_decoders import MWPMDecoder
@@ -23,26 +23,23 @@ from qce_interp.visualization.plotting_functionality import (
 import matplotlib.pyplot as plt
 
 
-def plot_combined_overview(decoder: IDecoder, error_identifier: IErrorDetectionIdentifier, circuit_description: IRepetitionCodeDescription, qec_rounds: List[int], target_state: InitialStateContainer, **kwargs) -> IFigureAxesPair:
+def plot_combined_overview(decoder: IDecoder, error_identifier: IErrorDetectionIdentifier, decoder_constructor: Callable[[IErrorDetectionIdentifier], IDecoder], qec_rounds: List[int], target_state: InitialStateContainer, **kwargs) -> IFigureAxesPair:
     """
     :param decoder: Decoder used to evaluate fidelity at each QEC-round.
     :param error_identifier: Instance that identifiers errors.
-    :param circuit_description: Circuit description used to construct MWPM decoder.
+    :param decoder_constructor: Constructor function taking IErrorDetectionIdentifier as argument
+        to construct the desired decoder used to evaluate under post-selection.
     :param qec_rounds: Array-like of qec cycles that should be included in the post-selection plot.
     :param target_state: InitialStateContainer instance representing target state.
     :param kwargs: Key-word arguments that are passed to plt.subplots() method.
     :return: Tuple of Figure and Axes pair.
     """
     # Data allocation
-    decoder_post_selected = MWPMDecoder(
-        error_identifier=error_identifier.copy_with_post_selection(
-            use_heralded_post_selection=True,
-            use_projected_leakage_post_selection=False,
-            use_stabilizer_leakage_post_selection=True,
-        ),
-        circuit_description=circuit_description,
-        initial_state_container=target_state,
-    )
+    decoder_post_selected = decoder_constructor(error_identifier.copy_with_post_selection(
+        use_heralded_post_selection=True,
+        use_projected_leakage_post_selection=False,
+        use_stabilizer_leakage_post_selection=True,
+    ))
 
     # Define grid details
     gridspec_constructor_kwargs: dict = dict(height_ratios=[1, 1, 1], width_ratios=[1])
