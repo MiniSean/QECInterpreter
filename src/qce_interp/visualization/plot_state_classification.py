@@ -69,6 +69,10 @@ class IQAxesFormat(IAxesFormat):
         # Set minor ticks to off
         axes.xaxis.set_minor_locator(ticker.NullLocator())
         axes.yaxis.set_minor_locator(ticker.NullLocator())
+        # Set scientific notation
+        axes.xaxis.set_major_formatter(ticker.ScalarFormatter(useMathText=True))
+        axes.yaxis.set_major_formatter(ticker.ScalarFormatter(useMathText=True))
+        axes.ticklabel_format(style='scientific', axis='both', scilimits=(-1, 1))
         return axes
     # endregion
 
@@ -94,13 +98,16 @@ def determine_axes_limits(state_classifier: StateAcquisitionContainer) -> Tuple[
         abs(min(all_shots.imag)),
         abs(max(all_shots.imag)),
     )
+    # Indicates order of magnitude
+    base_limit = 10 ** np.ceil(np.log10(maximum_limit))
+
     # Default
     axes_limit: float = 1.0
-    possible_axes_limits: List[float] = [0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.0]
+    possible_axes_limits: List[float] = [0.15, 0.25, 0.5, 0.75, 1.0]
     for possible_axes_limit in possible_axes_limits:
         margin_percentage: float = 0.9  # Maximum (axes) limit should be less than 90% of total axes limit
-        if maximum_limit < margin_percentage * possible_axes_limit:
-            axes_limit = possible_axes_limit
+        if maximum_limit < base_limit * margin_percentage * possible_axes_limit:
+            axes_limit = base_limit * possible_axes_limit
             break
     return -axes_limit, +axes_limit, -axes_limit, +axes_limit
 
@@ -444,8 +451,8 @@ def plot_state_classification(state_classifier: StateAcquisitionContainer, **kwa
     decision_boundaries: DecisionBoundaries = state_classifier.decision_boundaries
     kwargs[SubplotKeywordEnum.AXES_FORMAT.value] = IQAxesFormat()
     kwargs[SubplotKeywordEnum.LABEL_FORMAT.value] = LabelFormat(
-        x_label='Integrated voltage I',
-        y_label='Integrated voltage Q',
+        x_label='Integrated voltage I [V]',
+        y_label='Integrated voltage Q [V]',
     )
     # Figure and Axes
     fig, ax = construct_subplot(**kwargs)
