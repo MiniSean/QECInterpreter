@@ -9,6 +9,7 @@ import numpy as np
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from numpy.typing import NDArray
 from typing import List, Dict, Optional, Callable, TypeVar
+from qce_circuit.utilities.array_manipulation import unique_in_order
 from qce_interp.utilities.custom_exceptions import (
     InterfaceMethodException,
     ZeroClassifierShotsException,
@@ -291,11 +292,58 @@ class DecisionBoundaries:
     # endregion
 
 
+class IStateAcquisitionContainer(ABC):
+    """
+    Interface class, describing state acquisition and classification for state 0, 1 (and 2).
+    """
+
+    # region Interface Properties
+    @property
+    @abstractmethod
+    def contained_states(self) -> List[StateKey]:
+        """:return: Array-like of unique contained states."""
+        raise InterfaceMethodException
+
+    @property
+    @abstractmethod
+    def classification_boundaries(self) -> DecisionBoundaries:
+        """:return: DecisionBoundaries."""
+        raise InterfaceMethodException
+
+    @property
+    @abstractmethod
+    def concatenated_shots(self) -> NDArray[np.complex_]:
+        """:return: Array-like of (complex-valued) concatenated acquisition shots."""
+        raise InterfaceMethodException
+    # endregion
+
+    # region Interface Methods
+    @abstractmethod
+    def get_state_acquisition(self, state: StateKey) -> StateAcquisition:
+        """:return: StateAcquisition based on state key."""
+        raise InterfaceMethodException
+    # endregion
+
+
 @dataclass(frozen=True)
-class StateAcquisitionContainer:
-    """Data class, containing raw acquisition shots for state 0, 1 and 2."""
+class StateAcquisitionContainer(IStateAcquisitionContainer):
+    """
+    Data class, containing raw acquisition shots for state 0, 1 and 2.
+    """
     state_acquisition_lookup: Dict[StateKey, StateAcquisition]
     decision_boundaries: DecisionBoundaries = field(init=False)
+
+    # region Interface Properties
+    @property
+    def contained_states(self) -> List[StateKey]:
+        """:return: Array-like of unique contained states."""
+        return unique_in_order(self.state_acquisition_lookup.keys())
+
+    @property
+    def classification_boundaries(self) -> DecisionBoundaries:
+        """:return: DecisionBoundaries."""
+        return self.decision_boundaries
+    # endregion
 
     # region Class Properties
     @property
@@ -318,7 +366,12 @@ class StateAcquisitionContainer:
         labels = [[state.value] * len(acquisition.shots) for state, acquisition in
                   self.state_acquisition_lookup.items()]
         return np.concatenate(labels)
+    # endregion
 
+    # region Interface Methods
+    def get_state_acquisition(self, state: StateKey) -> StateAcquisition:
+        """:return: StateAcquisition based on state key."""
+        return self.state_acquisition_lookup[state]
     # endregion
 
     # region Class Methods
@@ -334,7 +387,6 @@ class StateAcquisitionContainer:
                 for acquisition in acquisitions
             }
         )
-
     # endregion
 
     # region Static Class Methods
@@ -406,16 +458,17 @@ class AssignmentFidelityMatrix:
 
     # region Class Methods
     @classmethod
-    def from_acquisition_container(cls, acquisition_container: StateAcquisitionContainer) -> 'AssignmentFidelityMatrix':
+    def from_acquisition_container(cls, acquisition_container: IStateAcquisitionContainer) -> 'AssignmentFidelityMatrix':
         """:return: Class method constructor based on decision boundaries."""
         # Data allocation
-        decision_boundaries: DecisionBoundaries = acquisition_container.decision_boundaries
-        states: List[StateKey] = list(acquisition_container.state_acquisition_lookup.keys())
+        decision_boundaries: DecisionBoundaries = acquisition_container.classification_boundaries
+        states: List[StateKey] = list(acquisition_container.contained_states)
         fidelity_matrix: np.ndarray = np.zeros(shape=(len(states), len(states)))
-        for i, state_acquisision in enumerate(acquisition_container.state_acquisition_lookup.values()):
+        for i, _state_key in enumerate(states):
+            state_acquisition = acquisition_container.get_state_acquisition(state=_state_key)
             for j, state in enumerate(states):
                 fidelity_matrix[i][j] = decision_boundaries.get_fidelity(
-                    shots=state_acquisision.shots,
+                    shots=state_acquisition.shots,
                     assigned_state=state,
                 )
 

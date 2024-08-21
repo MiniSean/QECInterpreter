@@ -7,7 +7,7 @@ from typing import List, Dict, Tuple
 from enum import Enum, unique, auto
 from qce_interp.utilities.geometric_definitions import Vec2D, Polygon, euclidean_distance
 from qce_interp.interface_definitions.intrf_state_classification import (
-    StateAcquisitionContainer,
+    IStateAcquisitionContainer,
     StateBoundaryKey,
     DirectedStateBoundaryKey,
     DecisionBoundaries,
@@ -84,7 +84,7 @@ class IQAxesFormat(IAxesFormat):
     # endregion
 
 
-def determine_axes_limits(state_classifier: StateAcquisitionContainer) -> Tuple[float, float, float, float]:
+def determine_axes_limits(state_classifier: IStateAcquisitionContainer) -> Tuple[float, float, float, float]:
     """
     Compares maximum shot values with discrete selection of axes limits.
     Chooses appropriate axes limit for given data.
@@ -112,7 +112,7 @@ def determine_axes_limits(state_classifier: StateAcquisitionContainer) -> Tuple[
     return -axes_limit, +axes_limit, -axes_limit, +axes_limit
 
 
-def plot_state_shots(state_classifier: StateAcquisitionContainer, **kwargs) -> IFigureAxesPair:
+def plot_state_shots(state_classifier: IStateAcquisitionContainer, **kwargs) -> IFigureAxesPair:
     """
     Plots state shots for a given state classifier.
 
@@ -135,7 +135,8 @@ def plot_state_shots(state_classifier: StateAcquisitionContainer, **kwargs) -> I
         listed_colormap: ListedColormap = ListedColormap(sub_colormap)
         alpha_colormaps.append(listed_colormap)
 
-    for state, state_acquisition in state_classifier.state_acquisition_lookup.items():
+    for state in state_classifier.contained_states:
+        state_acquisition = state_classifier.get_state_acquisition(state=state)
         ax.hexbin(
             x=state_acquisition.shots.real,
             y=state_acquisition.shots.imag,
@@ -376,7 +377,7 @@ def plot_decision_boundary(decision_boundaries: DecisionBoundaries, **kwargs) ->
     return fig, ax
 
 
-def plot_decision_region(state_classifier: StateAcquisitionContainer, **kwargs) -> IFigureAxesPair:
+def plot_decision_region(state_classifier: IStateAcquisitionContainer, **kwargs) -> IFigureAxesPair:
     """
     Plots decision regions for state classification.
 
@@ -385,7 +386,7 @@ def plot_decision_region(state_classifier: StateAcquisitionContainer, **kwargs) 
     :return: Tuple containing the figure and axes of the plot.
     """
     # Data allocation
-    decision_boundaries: DecisionBoundaries = state_classifier.decision_boundaries
+    decision_boundaries: DecisionBoundaries = state_classifier.classification_boundaries
     center: Vec2D = decision_boundaries.mean
     boundary_keys: List[StateBoundaryKey] = list(decision_boundaries.boundary_lookup.keys())
 
@@ -402,7 +403,7 @@ def plot_decision_region(state_classifier: StateAcquisitionContainer, **kwargs) 
     original_ylim = ax.get_ylim()
 
     rectangle_vertices: List[Vec2D] = get_axes_vertices(ax=ax)
-    for state in state_classifier.state_acquisition_lookup.keys():
+    for state in state_classifier.contained_states:
         color = STATE_COLORMAP[state](1.0)
 
         neighbor_boundary_keys: List[StateBoundaryKey] = get_neighboring_boundary_keys(
@@ -440,7 +441,7 @@ def plot_decision_region(state_classifier: StateAcquisitionContainer, **kwargs) 
     return fig, ax
 
 
-def plot_state_classification(state_classifier: StateAcquisitionContainer, **kwargs) -> IFigureAxesPair:
+def plot_state_classification(state_classifier: IStateAcquisitionContainer, **kwargs) -> IFigureAxesPair:
     """
     Creates a plot visualizing state classification and decision boundaries.
 
@@ -448,7 +449,7 @@ def plot_state_classification(state_classifier: StateAcquisitionContainer, **kwa
     :param kwargs: Additional keyword arguments for plot customization.
     :return: Tuple containing the figure and axes of the plot.
     """
-    decision_boundaries: DecisionBoundaries = state_classifier.decision_boundaries
+    decision_boundaries: DecisionBoundaries = state_classifier.classification_boundaries
     kwargs[SubplotKeywordEnum.AXES_FORMAT.value] = IQAxesFormat()
     kwargs[SubplotKeywordEnum.LABEL_FORMAT.value] = LabelFormat(
         x_label='Integrated voltage I [V]',
