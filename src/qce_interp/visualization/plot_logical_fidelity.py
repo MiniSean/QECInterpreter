@@ -111,7 +111,7 @@ def plot_fidelity(decoder: IDecoder, included_rounds: List[int], target_state: I
     """
     # Data allocation
     x_array: np.ndarray = np.asarray(included_rounds)
-    y_array: np.ndarray = np.full_like(x_array, np.nan, dtype=np.float_)
+    y_array: np.ndarray = np.full_like(x_array, np.nan, dtype=np.float64)
     for i, x in tqdm(enumerate(x_array), desc=f"Processing {decoder.__class__.__name__} Decoder", total=len(x_array)):
         try:
             value: float = decoder.get_fidelity(x, target_state=target_state.as_array)

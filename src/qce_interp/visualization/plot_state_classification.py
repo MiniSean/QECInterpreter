@@ -91,7 +91,7 @@ def determine_axes_limits(state_classifier: IStateAcquisitionContainer) -> Tuple
     :param state_classifier: State acquisition container, containing single-shot data.
     :return: Tuple of 4 limits (min_x, max_x, min_y, max_y).
     """
-    all_shots: NDArray[np.complex_] = state_classifier.concatenated_shots
+    all_shots: NDArray[np.complex128] = state_classifier.concatenated_shots
     maximum_limit: float = max(
         abs(min(all_shots.real)),
         abs(max(all_shots.real)),

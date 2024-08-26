@@ -9,9 +9,12 @@ from numpy.typing import NDArray
 from typing import List, Dict
 from xarray import DataArray
 from enum import Enum, unique
-from qce_interp.utilities.custom_exceptions import InterfaceMethodException
+from qce_interp.utilities.custom_exceptions import InterfaceMethodException, InsufficientParityInformationException
 from qce_interp.interface_definitions.intrf_channel_identifier import IQubitID
-from qce_interp.interface_definitions.intrf_connectivity_surface_code import ISurfaceCodeLayer
+from qce_interp.interface_definitions.intrf_connectivity_surface_code import (
+    ISurfaceCodeLayer,
+    IParityGroup,
+)
 from qce_interp.interface_definitions.intrf_stabilizer_index_kernel import IStabilizerIndexingKernel
 from qce_interp.interface_definitions.intrf_state_classification import IStateClassifierContainer
 
@@ -344,6 +347,11 @@ class ErrorDetectionIdentifier(IErrorDetectionIdentifier):
         self._use_computational_parity: bool = use_computational_parity
         self._use_projected_leakage_post_selection: bool = use_projected_leakage_post_selection
         self._use_stabilizer_leakage_post_selection: bool = use_stabilizer_leakage_post_selection
+        self._parity_index_lookup: Dict[IQubitID, NDArray[np.int_]] = self.get_parity_index_lookup(
+            parity_layout=self._device_layout,
+            involved_data_qubit_ids=self.involved_data_qubit_ids,
+            involved_ancilla_qubit_ids=self.involved_stabilizer_qubit_ids,
+        )
     # endregion
 
     # region Interface Methods
@@ -465,9 +473,14 @@ class ErrorDetectionIdentifier(IErrorDetectionIdentifier):
             return np.asarray([])
 
         binary_projection = binary_projection.reshape(n, d)
-        computational_parity: NDArray[np.int_] = self.calculate_computational_parity(binary_projection)
-        # (N, 1, D-1) Post-process
-        computational_parity = computational_parity.reshape((n, one, d - 1))
+        computational_parity: NDArray[np.int_] = self.calculate_computational_parity(
+            array=binary_projection,
+            parity_index_lookup=self._parity_index_lookup,
+            involved_ancilla_qubit_ids=self.involved_stabilizer_qubit_ids,
+        )
+        # (N, 1, S) Post-process
+        s: int = len(self.involved_stabilizer_qubit_ids)
+        computational_parity = computational_parity.reshape((n, one, s))
         return computational_parity
 
     @lru_cache(maxsize=None)
@@ -611,8 +624,7 @@ class ErrorDetectionIdentifier(IErrorDetectionIdentifier):
         """
         # (P, N, M) Heralded acquisition index slices
         index_slices: NDArray[np.int_] = np.asarray([
-            self._index_kernel.get_heralded_cycle_acquisition_indices(qubit_id=qubit_id,
-                                                                      cycle_stabilizer_count=cycle_stabilizer_count)
+            self._index_kernel.get_heralded_cycle_acquisition_indices(qubit_id=qubit_id, cycle_stabilizer_count=cycle_stabilizer_count)
             for qubit_id in self.involved_qubit_ids
         ])
         # (P, N, M) Binary classification of heralded acquisition
@@ -643,8 +655,7 @@ class ErrorDetectionIdentifier(IErrorDetectionIdentifier):
         """
         # (D, N, 1) Projected acquisition index slices
         index_slices: NDArray[np.int_] = np.asarray([
-            self._index_kernel.get_projected_cycle_acquisition_indices(qubit_id=qubit_id,
-                                                                       cycle_stabilizer_count=cycle_stabilizer_count)
+            self._index_kernel.get_projected_cycle_acquisition_indices(qubit_id=qubit_id, cycle_stabilizer_count=cycle_stabilizer_count)
             for qubit_id in self.involved_data_qubit_ids
         ])
         # (D, N, 1) Ternary classification of projected acquisition
@@ -729,29 +740,125 @@ class ErrorDetectionIdentifier(IErrorDetectionIdentifier):
     # endregion
 
     # region Static Class Methods
-    # TODO: This should depend on surface-code device layout
     @staticmethod
-    def calculate_computational_parity(array: np.ndarray) -> np.ndarray:
+    def get_parity_index_lookup(parity_layout: ISurfaceCodeLayer, involved_data_qubit_ids: List[IQubitID], involved_ancilla_qubit_ids: List[IQubitID]) -> Dict[IQubitID, NDArray[np.int_]]:
+        """
+        Constructs lookup dictionary, mapping ancilla qubit-IDs to (ordered) list indices corresponding to (involved) data qubit-IDs.
+        Example:
+        - Parity X1: D1-D2
+        - Parity Z1: D1-D2-D4-D5
+        - involved data qubit-IDs: [D5, D2, D1, D6, D7, D4]
+        Output lookup:
+        - {
+            X1: [2, 1]        # Pointing at D1 and D2 respectively
+            Z1: [2, 1, 5, 0]  # Pointing at D1, D2, D4 and D5 respectively
+          }
+        Note: if not all data-qubits from given parity are present, exclude parity from lookup.
+
+        :param parity_layout:
+        :param involved_data_qubit_ids:
+        :param involved_ancilla_qubit_ids:
+        :return: Dictionary mapping ancilla qubit-IDs to data qubit-ID list indices.
+        """
+        parity_groups: List[IParityGroup] = parity_layout.parity_group_z + parity_layout.parity_group_x
+        is_unique_parity_group: bool = len(parity_groups) == len(set([parity_group.ancilla_id for parity_group in parity_groups]))
+        assert is_unique_parity_group, f"" \
+                                       f"Expects a unique collection of parities," \
+                                       f" instead {parity_groups} contains non-unique ancilla entries." \
+                                       f" Define unique parity groups in 'parity_layout'."
+        result: Dict[IQubitID, NDArray[np.int_]] = {}
+        for ancilla_qubit_id in involved_ancilla_qubit_ids:
+            parity_groups: List[IParityGroup] = parity_layout.get_parity_group(element=ancilla_qubit_id)
+            if len(parity_groups) == 0:
+                continue
+            parity_group: IParityGroup = parity_groups[0]
+
+            # Get the list of data qubits associated with this ancilla qubit from the parity layout
+            associated_data_qubits: List[IQubitID] = parity_group.data_ids
+
+            # Guard clause, if not all associated data qubits are present in list, skip ancilla entry
+            all_associated_data_qubits_present: bool = all([qubit_id in involved_data_qubit_ids for qubit_id in associated_data_qubits])
+            if not all_associated_data_qubits_present:
+                continue
+
+            # Find the indices of these data qubits in the involved_data_qubit_ids list
+            indices: List[int] = [
+                involved_data_qubit_ids.index(data_qubit_id)
+                for data_qubit_id in associated_data_qubits
+            ]
+
+            # Store these indices in the lookup dictionary
+            result[ancilla_qubit_id] = np.array(indices, dtype=np.int_)
+        return result
+
+    @staticmethod
+    def calculate_computational_parity_from_layout(array: np.ndarray, parity_layout: ISurfaceCodeLayer, involved_data_qubit_ids: List[IQubitID], involved_ancilla_qubit_ids: List[IQubitID]) -> np.ndarray:
         """
         Maps binary to parity.
-        Mapping (0, 0) and (1, 1) -> +1.
-        Mapping (0, 1) and (1, 0) -> -1.
+        Mapping (0, 0) and (1, 1) and (0, 0, 0, 0) and (0, 1, 0, 1), etc. -> +1.
+        Mapping (0, 1) and (1, 0) and (0, 0, 0, 1) and (1, 1, 0, 1), etc. -> -1.
         Input shape: (N, X)
-        Output shape: (N, X-1)
+        Output shape: (N, D)
         - N is the number of measurement repetitions.
-        - X arbitrary number.
+        - X number of data qubits measured.
+        - D number of ancilla qubits measured.
+        :param array: Classified (final) measurement array of snape (N, D).
+        :param parity_layout: ISurfaceCodeLayer describing (unique) parity groups.
+        :param involved_data_qubit_ids: Ordered array-like of data qubit-IDs.
+        :param involved_ancilla_qubit_ids: Ordered array-like of ancilla qubit-IDs.
         :return: Tensor of parity-classification at specific cycle.
         """
-        # Shift the array to the left and compare with the original array
-        shifted_array = np.roll(array, -1, axis=-1)
+        # Step 1: Get the parity index lookup dictionary
+        parity_index_lookup: Dict[IQubitID, NDArray[np.int_]] = ErrorDetectionIdentifier.get_parity_index_lookup(
+            parity_layout=parity_layout,
+            involved_data_qubit_ids=involved_data_qubit_ids,
+            involved_ancilla_qubit_ids=involved_ancilla_qubit_ids,
+        )
+        return ErrorDetectionIdentifier.calculate_computational_parity(
+            array=array,
+            parity_index_lookup=parity_index_lookup,
+            involved_ancilla_qubit_ids=involved_ancilla_qubit_ids,
+        )
 
-        # The last column of shifted_array is no longer valid after rolling
-        # It should not be used in comparison
-        comparison = array[:, :-1] == shifted_array[:, :-1]
+    @staticmethod
+    def calculate_computational_parity(array: np.ndarray, parity_index_lookup: Dict[IQubitID, NDArray[np.int_]], involved_ancilla_qubit_ids: List[IQubitID]) -> np.ndarray:
+        """
+        Maps binary to parity.
+        Mapping (0, 0) and (1, 1) and (0, 0, 0, 0) and (0, 1, 0, 1), etc. -> +1.
+        Mapping (0, 1) and (1, 0) and (0, 0, 0, 1) and (1, 1, 0, 1), etc. -> -1.
+        Input shape: (N, X)
+        Output shape: (N, D)
+        - N is the number of measurement repetitions.
+        - X number of data qubits measured.
+        - D number of ancilla qubits measured.
+        :param array: Classified (final) measurement array of snape (N, D).
+        :param parity_index_lookup: Dictionary mapping ancilla qubit-IDs to data qubit-ID list indices.
+        :param involved_ancilla_qubit_ids: Ordered array-like of ancilla qubit-IDs.
+        :return: Tensor of parity-classification at specific cycle.
+        """
+        n, _ = array.shape
+        x: int = len(parity_index_lookup)
+        result: np.ndarray = np.zeros(shape=(n, x), dtype=np.int_)
 
-        # Map True to +1 and False to -1
-        parity_array = np.where(comparison, 1, -1)
-        return parity_array
+        # Calculate the parity for each ancilla qubit
+        for i, ancilla_qubit_id in enumerate(involved_ancilla_qubit_ids):
+            # Guard clause, if ancilla not in parity lookup, raise warning
+            if ancilla_qubit_id not in parity_index_lookup:
+                raise InsufficientParityInformationException(f"Fails to calculate parity for {ancilla_qubit_id}."
+                                                             f" Check if all data qubit outcomes are provided."
+                                                             f" Or if the correct parity_layout (ISurfaceCodeLayer) is used.")
+
+            # Get the indices in 'array' corresponding to the current ancilla qubit
+            indices = parity_index_lookup[ancilla_qubit_id]
+
+            # Extract the subarray corresponding to these indices
+            subarray = array[:, indices]
+
+            # Calculate the parity: +1 if even number of 0's, -1 if odd number of 0's
+            parity = np.sum(subarray == 0, axis=1) % 2  # This gives 0 for even, 1 for odd
+            result[:, i] = np.where(parity == 0, 1, -1)  # Map 0 to +1 and 1 to -1
+
+        return result
     # endregion
 
 

@@ -33,9 +33,8 @@ from qce_interp.interface_definitions.intrf_state_classification import (
     ParityType,
 )
 from qce_interp.interface_definitions.intrf_connectivity_surface_code import ISurfaceCodeLayer
-from qce_interp.interface_definitions.intrf_error_identifier import (
-    ErrorDetectionIdentifier,
-)
+from qce_interp.interface_definitions.intrf_error_identifier import ErrorDetectionIdentifier
+from qce_interp.utilities.expected_parities import initial_state_to_expected_parity
 
 
 FILL_VALUE: float = np.nan
@@ -162,8 +161,10 @@ class SimulatedDataManager(IDataManager):
             involved_ancilla_qubit_ids=involved_ancilla_qubit_ids,
             experiment_repetitions=experiment_repetitions,
         )
-        expected_parity_lookup = SimulatedDataManager.initial_state_to_expected_parity(
+        expected_parity_lookup = initial_state_to_expected_parity(
             initial_state=initial_state,
+            parity_layout=device_layout,
+            involved_data_qubit_ids=involved_data_qubit_ids,
             involved_ancilla_qubit_ids=involved_ancilla_qubit_ids,
         )
         simulated_data: np.ndarray = SimulatedDataManager.construct_simulated_repetition_code_data(
@@ -195,21 +196,6 @@ class SimulatedDataManager(IDataManager):
     # endregion
 
     # region Static Class Methods
-    @staticmethod
-    def initial_state_to_expected_parity(initial_state: InitialStateContainer, involved_ancilla_qubit_ids: List[IQubitID]) -> Dict[IQubitID, ParityType]:
-        assert initial_state.distance == len(involved_ancilla_qubit_ids) + 1, f"Expects N number of initial states and N-1 number of ancilla's. instead {initial_state.distance} != {len(involved_ancilla_qubit_ids) - 1}."
-        result: Dict[IQubitID, ParityType] = {}
-
-        for i, qubit_id in enumerate(involved_ancilla_qubit_ids):
-            state_a: int = initial_state.as_array[i]
-            state_b: int = initial_state.as_array[i + 1]
-            even_parity: bool = state_a == state_b
-            if even_parity:
-                result[qubit_id] = ParityType.EVEN
-            else:
-                result[qubit_id] = ParityType.ODD
-        return result
-
     @staticmethod
     def _construct_simulated_data(stim_circuit: stim.Circuit, qec_cycle: int, nr_ancilla_qubits: int, nr_data_qubits: int, experiment_repetitions: int) -> np.ndarray:
         """
