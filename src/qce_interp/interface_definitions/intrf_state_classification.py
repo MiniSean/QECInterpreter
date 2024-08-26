@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from enum import Enum, unique
 import itertools
 import numpy as np
+from warnings import warn
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from numpy.typing import NDArray
 from typing import List, Dict, Optional, Callable, TypeVar
@@ -274,7 +275,10 @@ class DecisionBoundaries:
         elif denominator == 0 and numerator == 0:
             _x: float = 1.0
         else:
-            raise ZeroDivisionError(f"During instersect calculation of {coef1} and {coef2}.")
+            warn(f"[ZeroDivisionError] During intersect calculation of {coef1} and {coef2}.")
+            denominator = 1e-6
+            _x: float = numerator / denominator
+
         _y: float = -coef1.x / coef1.y * _x - intercept1 / coef1.y
         return Vec2D(
             x=_x,
