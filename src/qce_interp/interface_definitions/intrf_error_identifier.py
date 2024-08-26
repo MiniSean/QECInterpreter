@@ -165,6 +165,15 @@ class IErrorDetectionIdentifier(ABC):
         :return: Newly constructed instance inheriting IErrorDetectionIdentifier interface based on post-selection settings.
         """
         raise InterfaceMethodException
+
+    @abstractmethod
+    def get_post_selection_mask(self, cycle_stabilizer_count: int) -> NDArray[np.bool_]:
+        """
+        Output shape: (N,)
+        - N is the number of measurement repetitions.
+        :return: Tensor of boolean mask based on post-selection conditions (at specific cycle).
+        """
+        raise InterfaceMethodException
     # endregion
 
 
@@ -680,6 +689,11 @@ class ErrorDetectionIdentifier(IErrorDetectionIdentifier):
             self._index_kernel.get_stabilizer_and_projected_cycle_acquisition_indices(qubit_id=qubit_id, cycle_stabilizer_count=cycle_stabilizer_count)
             for qubit_id in self.involved_stabilizer_qubit_ids
         ])
+        # Guard clause, return full (True) response in-case of 0-QEC-round
+        if np.size(index_slices) == 0:
+            s, n, m = index_slices.shape
+            return np.full(shape=(n,), fill_value=True)
+
         # (S, N, M) Ternary classification of projected acquisition
         stabilizer_ternary_tensor: np.ndarray = np.zeros(index_slices.shape, dtype=np.int_)
         for i, qubit_id in enumerate(self.involved_stabilizer_qubit_ids):
@@ -1274,6 +1288,16 @@ class LabeledErrorDetectionIdentifier(ILabeledErrorDetectionIdentifier):
                 use_projected_leakage_post_selection=use_projected_leakage_post_selection,
                 use_stabilizer_leakage_post_selection=use_stabilizer_leakage_post_selection,
             )
+        )
+
+    def get_post_selection_mask(self, cycle_stabilizer_count: int) -> NDArray[np.bool_]:
+        """
+        Output shape: (N,)
+        - N is the number of measurement repetitions.
+        :return: Tensor of boolean mask based on post-selection conditions (at specific cycle).
+        """
+        return self._error_detection_identifier.get_post_selection_mask(
+            cycle_stabilizer_count=cycle_stabilizer_count,
         )
     # endregion
 
