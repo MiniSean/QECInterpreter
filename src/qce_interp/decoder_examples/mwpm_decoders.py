@@ -9,6 +9,9 @@ from numpy.typing import NDArray
 import pymatching
 import stim
 import cma
+from scipy.sparse import csc_matrix
+from pymatching import Matching
+from tqdm import tqdm
 from qce_circuit.connectivity.intrf_channel_identifier import IQubitID, QubitIDObj
 from qce_circuit.addon_stim.noise_settings_manager import QubitNoiseModelParameters, IndexedNoiseSettings
 from qce_circuit.addon_stim.intrf_noise_factory import IStimNoiseDresserFactory
@@ -330,3 +333,149 @@ class MWPMDecoder(IDecoder):
 
         return optimized_parameters, optimized_decoder
     # endregion
+
+
+class MWPMDecoderFast(IDecoder):
+    """
+    Behaviour class, implementing ILookupDecoder interfaces.
+    Uses following convention:
+    Output arrays are 3D tensors (N, M, P) where,
+    - N is the number of measurement repetitions.
+    - M is the number of stabilizer repetitions.
+    - P is the number of qubit elements.
+        Where:
+        - S is the number of stabilizer qubits.
+        - D is the number of data qubits.
+    """
+
+    # region Class Constructor
+    def __init__(
+            self,
+            error_identifier: IErrorDetectionIdentifier,
+            qec_rounds: List[int],
+            initial_state_container: InitialStateContainer = InitialStateContainer.empty(),
+            optimize: bool = True,
+    ):
+        self._error_identifier: IErrorDetectionIdentifier = error_identifier
+        self._initial_state_container: InitialStateContainer = initial_state_container
+        self.qec_rounds = qec_rounds
+
+        self.extract_data()
+        if optimize:
+            self.optimize_weights()
+        else:
+            # uniform weights by default
+            self.space_like_weights = 1
+            self.time_like_weights = 1
+
+    # endregion
+
+    def extract_data(self):
+        # binary initial state
+        self.initial_state = np.sum(self._initial_state_container.as_array) % 2
+
+        self.all_defects = []
+        self.all_data_qubit_outcomes = []
+        for round in tqdm(self.qec_rounds, desc='Processing defects'):
+            defects = eigen_to_binary(self._error_identifier.get_defect_stabilizer_classification(round))
+            data_qubit_outcomes = self._error_identifier.get_binary_projected_classification(round)
+
+            # reshape the array with the size of (num_shots, num_stab * (round + 1))
+            num_shots = len(defects)
+            defects = np.reshape(defects, (num_shots, -1))
+            data_qubit_outcomes = np.reshape(data_qubit_outcomes, (num_shots, -1))
+
+            self.all_defects.append(defects)
+            self.all_data_qubit_outcomes.append(data_qubit_outcomes)
+
+        if len(self.all_data_qubit_outcomes) != (self.qec_rounds[-1] + 1):
+            assert False, 'Only support step size = 1 starting at 0 round!'
+
+        self.distance = len(self.all_data_qubit_outcomes[0][0])
+        # args for decoder
+        self.H = csc_matrix(create_diagonal_matrix_corrected(self.distance).tolist())
+        self.observables = csc_matrix(create_standard_diagonal_matrix(self.distance).tolist())
+
+    def get_fidelity(self, qec_round: int, target_state: np.ndarray = None, qec_round_idx: int = None, max_shots: int = None) -> float:
+        """
+        Output shape: (1)
+        - N is the number of measurement repetitions.
+        - D is the number of data qubits.
+        Note that target_state is not used. It's still in the argument for compatibility.
+        :return: Fidelity value of target state at specific cycle.
+        """
+        # by default step size = 1, starting from 0.
+        if qec_round_idx is None:
+            qec_round_idx = qec_round
+        num_shots = len(self.all_defects[qec_round_idx])
+        if (max_shots is not None) and (num_shots > max_shots):
+            num_shots = max_shots
+
+        matching = Matching(self.H, weights=self.space_like_weights,
+                            repetitions=qec_round + 1, timelike_weights=self.time_like_weights,
+                            faults_matrix=self.observables)
+
+        corrections = matching.decode_batch(self.all_defects[qec_round_idx][:num_shots])
+        corrected_outcomes = (corrections + self.all_data_qubit_outcomes[qec_round_idx][:num_shots]) % 2
+        num_error = np.sum(np.sum(corrected_outcomes, axis=1) % 2 == 1)  # initial state is considered later
+        # correct for echo pulses
+        error_rate = num_error / num_shots if (qec_round % 2 == 1 or qec_round == 0) else 1 - num_error / num_shots
+        # correct for initial states
+        error_rate = error_rate if self.initial_state == 0 else 1 - error_rate
+
+        return 1 - error_rate
+
+    def get_error_rate_for_optimizer(self, concatenated_weights: np.ndarray, qec_round: int, max_shots: int = 1000) -> float:
+        '''
+        Set weights and get the error rate
+        :param concatenated_weights: 1d array: [space_like_weights, time_like_weights]
+        :param qec_round: qec round
+        :return:
+        '''
+        self.space_like_weights = concatenated_weights[:self.distance]
+        self.time_like_weights = concatenated_weights[self.distance:]
+        error_rate = 1 - self.get_fidelity(qec_round, max_shots=max_shots)
+        return error_rate
+
+    def optimize_weights(self, max_shots: int = 1000):
+        '''
+        Optimize and set the weights
+        '''
+        self._optimized_round = 10
+        initial_weights = np.ones(
+            self.distance * 2 - 1) * 0.02  # uniform weights for d data qubits and d-1 ancila qubits
+        sigma0 = 10 * 0.25  # determines the optimization step size. cma suggests 15*0.25, here use smaller step size
+        result = cma.fmin(self.get_error_rate_for_optimizer, initial_weights, sigma0,
+                          options={'bounds': [0, 15]}, args=(self._optimized_round, max_shots), eval_initial_x=True)
+
+        concatenated_weights = result[0]
+        self.space_like_weights = concatenated_weights[:self.distance]
+        self.time_like_weights = concatenated_weights[self.distance:]
+
+
+# helper functions
+def eigen_to_binary(x: np.ndarray):
+    y = -0.5 * x + 0.5
+    return y.astype(np.int32)
+
+
+def create_diagonal_matrix_corrected(n):
+    if n < 2:
+        raise ValueError("n must be greater than or equal to 2")
+    # Create an empty matrix filled with zeros
+    matrix = np.zeros((n - 1, n), dtype=int)
+    # Set two diagonal elements to 1 in each row
+    for i in range(n - 1):
+        matrix[i, i] = 1
+        matrix[i, i + 1] = 1
+    return matrix
+
+
+def create_standard_diagonal_matrix(n):
+    if n < 1:
+        raise ValueError("n must be greater than or equal to 1")
+    # Create an empty matrix filled with zeros
+    matrix = np.zeros((n, n), dtype=int)
+    # Set diagonal elements to 1
+    np.fill_diagonal(matrix, 1)
+    return matrix
