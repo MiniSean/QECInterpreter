@@ -321,6 +321,69 @@ def filter_vertices_within_smaller_angle(center: Vec2D, intersection1: Vec2D, in
     return filtered_vertices
 
 
+def clip_line_with_bounds(line_point1: Vec2D, line_point2: Vec2D, min_x: float, max_x: float, min_y: float, max_y: float) -> Tuple[Vec2D, Vec2D]:
+    """
+    Clips the coordinates of a line to fit within a bounding box while maintaining the line's direction.
+
+    :param line_point1: First point as Vec2D.
+    :param line_point2: Second point as Vec2D.
+    :param min_x: Minimum x boundary.
+    :param max_x: Maximum x boundary.
+    :param min_y: Minimum y boundary.
+    :param max_y: Maximum y boundary.
+    :return: Clipped coordinates of the line as (line_point1, line_point2).
+    """
+
+    def clip(val, min_val, max_val):
+        return max(min(val, max_val), min_val)
+
+    # Clip the points to the min and max boundaries
+    x1_clipped = clip(line_point1.x, min_x, max_x)
+    y1_clipped = clip(line_point1.y, min_y, max_y)
+    x2_clipped = clip(line_point2.x, min_x, max_x)
+    y2_clipped = clip(line_point2.y, min_y, max_y)
+
+    # Adjust the points to maintain the line if any were clipped
+    if line_point1.x != x1_clipped or line_point1.y != y1_clipped or line_point2.x != x2_clipped or line_point2.y != y2_clipped:
+        # Calculate slope
+        dx = line_point2.x - line_point1.x
+        dy = line_point2.y - line_point1.y
+        if dx != 0:
+            slope = dy / dx
+            intercept = line_point1.y - slope * line_point1.x
+        else:
+            slope = None  # Vertical line
+            intercept = line_point1.x  # x-intercept for vertical lines
+
+        # Clip the x-values first and recalculate y if possible
+        if slope is not None:
+            if x1_clipped != line_point1.x:
+                y1_clipped = slope * x1_clipped + intercept
+                y1_clipped = clip(y1_clipped, min_y, max_y)
+            if x2_clipped != line_point2.x:
+                y2_clipped = slope * x2_clipped + intercept
+                y2_clipped = clip(y2_clipped, min_y, max_y)
+        else:  # For vertical lines, clip y-values directly
+            y1_clipped = clip(line_point1.y, min_y, max_y)
+            y2_clipped = clip(line_point2.y, min_y, max_y)
+
+    return Vec2D(x1_clipped, y1_clipped), Vec2D(x2_clipped, y2_clipped)
+
+
+def clip_line(line_point1: Vec2D, line_point2: Vec2D, ax: plt.Axes) -> Tuple[Vec2D, Vec2D]:
+    """
+    Clips the coordinates of a line to fit within a bounding box while maintaining the line's direction.
+
+    :param line_point1: First point as Vec2D.
+    :param line_point2: Second point as Vec2D.
+    :param ax: Matplotlib Axes object to get the boundaries from.
+    :return: Clipped coordinates of the line as (line_point1, line_point2).
+    """
+    min_x, max_x = ax.get_xlim()
+    min_y, max_y = ax.get_ylim()
+    return clip_line_with_bounds(line_point1, line_point2, min_x, max_x, min_y, max_y)
+
+
 def rotation_point_180_degrees(point: Vec2D, center: Vec2D) -> Vec2D:
     """:return: Rotated (180 degree) point around center."""
     translated_point: Vec2D = point - center
@@ -361,6 +424,18 @@ def plot_decision_boundary(decision_boundaries: DecisionBoundaries, **kwargs) ->
             intersection_points.extend([
                 boundary_intersections[DirectedStateBoundaryKey(boundary_key.state_a, boundary_key.state_b)],
             ])
+
+    # Clip intersection points
+    for i, intersection_point in enumerate(intersection_points):
+        _, clipped_intersection_point = clip_line_with_bounds(
+            line_point1=center,
+            line_point2=intersection_point,
+            min_x=original_xlim[0],
+            max_x=original_xlim[1],
+            min_y=original_ylim[0],
+            max_y=original_ylim[1],
+        )
+        intersection_points[i] = clipped_intersection_point  # Update intersection points
 
     for intersection_point in intersection_points:
         ax.plot(
@@ -421,6 +496,14 @@ def plot_decision_region(state_classifier: IStateAcquisitionContainer, **kwargs)
         intersection1: Vec2D = boundary_intersections[boundary1]
         intersection2: Vec2D = boundary_intersections[boundary2]
 
+        intersection1, intersection2 = clip_line_with_bounds(
+            line_point1=intersection1,
+            line_point2=intersection2,
+            min_x=original_xlim[0],
+            max_x=original_xlim[1],
+            min_y=original_ylim[0],
+            max_y=original_ylim[1],
+        )
         vertices: List[Vec2D] = filter_vertices_within_smaller_angle(
             center=center,
             intersection1=intersection1,
