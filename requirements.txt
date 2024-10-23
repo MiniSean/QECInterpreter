@@ -13,7 +13,7 @@ pytest
 cma
 
 # 3rd party libraries
-pymatching
+pymatching==2.1.0
 stim
 
 # Personal project dependencies

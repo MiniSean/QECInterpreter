@@ -21,6 +21,13 @@ class QECCycleNotIncludedException(Exception):
     """
 
 
+class ZeroClassifierShotsException(Exception):
+    """
+    Raised when state-classification is attempted with zero (0) classification shots.
+    """
+
+
+
 class InsufficientParityInformationException(Exception):
     """
     Raised when parity can not be computed due to insufficient data.

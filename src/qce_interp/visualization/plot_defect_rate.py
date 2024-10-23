@@ -69,11 +69,43 @@ def plot_post_selection_fraction(error_identifier: IErrorDetectionIdentifier, qu
     transform = transforms.blended_transform_factory(ax.transAxes, ax.transAxes)
     ax.text(
         0.98,
-        0.02,
+        0.90,
         f'Leakage Post-Sel. Ratio: {post_selection_ratio:.2%} ({sample_size_post_selected}/{sample_size})',
         ha='right', va='bottom', transform=transform,
     )
     return fig, ax
+
+
+def is_post_selection_valid(labeled_error_identifier: LabeledErrorDetectionIdentifier, qubit_id: IQubitID, qec_cycles: int) -> bool:
+    # Data allocation
+    labeled_error_identifier_post_selected: LabeledErrorDetectionIdentifier = labeled_error_identifier.copy_with_post_selection(
+        use_heralded_post_selection=labeled_error_identifier.include_heralded_post_selection,
+        use_projected_leakage_post_selection=False,
+        use_stabilizer_leakage_post_selection=True,
+    )
+    data_array: xr.DataArray = labeled_error_identifier.get_labeled_defect_stabilizer_lookup(
+        cycle_stabilizer_count=qec_cycles
+    )[qubit_id]
+    try:
+        data_array_post_selected: xr.DataArray = labeled_error_identifier_post_selected.get_labeled_defect_stabilizer_lookup(
+            cycle_stabilizer_count=qec_cycles
+        )[qubit_id]
+        # Calculate sample size across 'measurement_repetition'
+        sample_size: int = data_array.sizes[DataArrayLabels.MEASUREMENT.value]
+        sample_size_post_selected: int = data_array_post_selected.sizes[DataArrayLabels.MEASUREMENT.value]
+        try:
+            post_selection_ratio: float = sample_size_post_selected / sample_size
+        except ZeroDivisionError:
+            post_selection_ratio = np.nan
+
+        if np.isnan(post_selection_ratio) or post_selection_ratio < 0.02:
+            valid_post_selection = False
+        else:
+            valid_post_selection = True
+    except Exception:
+        return False
+
+    return valid_post_selection
 
 
 def plot_defect_rate(error_identifier: IErrorDetectionIdentifier, qubit_id: IQubitID, qec_cycles: int, **kwargs) -> IFigureAxesPair:
@@ -92,10 +124,13 @@ def plot_defect_rate(error_identifier: IErrorDetectionIdentifier, qubit_id: IQub
         use_stabilizer_leakage_post_selection=True,
     )
     data_array: xr.DataArray = labeled_error_identifier.get_labeled_defect_stabilizer_lookup(cycle_stabilizer_count=qec_cycles)[qubit_id]
-    data_array_post_selected: xr.DataArray = labeled_error_identifier_post_selected.get_labeled_defect_stabilizer_lookup(cycle_stabilizer_count=qec_cycles)[qubit_id]
+    valid_post_selection: bool = is_post_selection_valid(
+        labeled_error_identifier=labeled_error_identifier,
+        qubit_id=qubit_id,
+        qec_cycles=qec_cycles,
+    )
     # Calculate the mean across 'measurement_repetition'
     averages = data_array.mean(dim=DataArrayLabels.MEASUREMENT.value)
-    averages_post_selected = data_array_post_selected.mean(dim=DataArrayLabels.MEASUREMENT.value)
     label: str = qubit_id.id
     color: str = kwargs.pop('color', blue_shades[0])
 
@@ -108,20 +143,27 @@ def plot_defect_rate(error_identifier: IErrorDetectionIdentifier, qubit_id: IQub
         ),
     )
     kwargs[SubplotKeywordEnum.LABEL_FORMAT.value] = label_format
-    # If no host-axes are available, apply post-selection fraction plotting
-    flag_post_selection_fraction: str = "FLAG_plotted_post_selection_fraction"
-    if not kwargs.get(flag_post_selection_fraction, False):
-        kwargs[SubplotKeywordEnum.HOST_AXES.value] = plot_post_selection_fraction(
-            error_identifier=error_identifier,
-            qubit_id=qubit_id,
-            qec_cycles=qec_cycles,
-            **kwargs,
-        )
-        kwargs[flag_post_selection_fraction] = True
+    if valid_post_selection:
+        # If no host-axes are available, apply post-selection fraction plotting
+        flag_post_selection_fraction: str = "FLAG_plotted_post_selection_fraction"
+        if not kwargs.get(flag_post_selection_fraction, False):
+            kwargs[SubplotKeywordEnum.HOST_AXES.value] = plot_post_selection_fraction(
+                error_identifier=error_identifier,
+                qubit_id=qubit_id,
+                qec_cycles=qec_cycles,
+                **kwargs,
+            )
+            kwargs[flag_post_selection_fraction] = True
 
     fig, ax = construct_subplot(**kwargs)
     averages.plot.line('.-', color=color, ax=ax, label=label)
-    averages_post_selected.plot.line('--', color=color, ax=ax)
+    if valid_post_selection:
+        data_array_post_selected: xr.DataArray = \
+        labeled_error_identifier_post_selected.get_labeled_defect_stabilizer_lookup(
+            cycle_stabilizer_count=qec_cycles
+        )[qubit_id]
+        averages_post_selected = data_array_post_selected.mean(dim=DataArrayLabels.MEASUREMENT.value)
+        averages_post_selected.plot.line('--', color=color, ax=ax)
     ax = label_format.apply_to_axes(axes=ax)
 
     ax.set_ylim([0.0, 0.5])
@@ -238,6 +280,7 @@ def plot_all_defect_and_leakage(error_identifier: IErrorDetectionIdentifier, inc
     :return: Tuple of Figure and Axes pair.
     """
 
+    kwargs = {}
     kwargs[SubplotKeywordEnum.FIGURE_SIZE.value] = (6.4, 4.8)
     # Define grid details
     gridspec_constructor_kwargs: dict = dict(height_ratios=[3, 1], width_ratios=[1], hspace=0.0, wspace=0.0)

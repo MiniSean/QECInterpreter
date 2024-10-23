@@ -20,7 +20,7 @@ from .interface_definitions.intrf_syndrome_decoder import (
     ISyndromeDecoder,
     ILabeledSyndromeDecoder,
 )
-from .decoder_examples.mwpm_decoders import MWPMDecoder
+from .decoder_examples.mwpm_decoders import MWPMDecoder, MWPMDecoderFast
 from .decoder_examples.lookup_table import LabeledSyndromeDecoder, Distance5LookupTableDecoder
 from qce_circuit.connectivity.connectivity_surface_code import Surface17Layer
 
@@ -33,6 +33,7 @@ __all__ = [
     "LabeledSyndromeDecoder",
     "Distance5LookupTableDecoder",
     "MWPMDecoder",
+    "MWPMDecoderFast",
     "StateAcquisitionContainer",
     "IStateClassifierContainer",
     "StateClassifierContainer",

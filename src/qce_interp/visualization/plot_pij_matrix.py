@@ -75,9 +75,10 @@ def _plot_pij_matrix(pij_matrix: np.ndarray, ordered_qubit_ids: List[IQubitID], 
     ax.set_yticklabels([])
     # Write qubit labels
     ordered_qubit_names: List[str] = [qubit_id.id for qubit_id in ordered_qubit_ids]
+    label_distance: float = (1.5 / 10) * R
     for i, q in enumerate(ordered_qubit_names):
-        ax.text(i*R+(R-1)/2, -3.5, q, va='center', ha='center', size=12)
-        ax.text(-3.5, i*R+(R-1)/2, q, va='center', ha='center', size=12)
+        ax.text(i*R+(R-1)/2, -label_distance, q, va='center', ha='center', size=12)
+        ax.text(-label_distance, i*R+(R-1)/2, q, va='center', ha='center', size=12)
     # Minor tick labels
     ticks = np.arange(0, R+1, 1.0, dtype=np.int_)
     if not include_minor_tick_lines:
