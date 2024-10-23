@@ -102,8 +102,8 @@ def determine_axes_limits(state_classifier: IStateAcquisitionContainer) -> Tuple
     base_limit = 10 ** np.ceil(np.log10(maximum_limit))
 
     # Default
-    axes_limit: float = 1.0
     possible_axes_limits: List[float] = [0.15, 0.25, 0.5, 0.75, 1.0]
+    axes_limit: float = min(possible_axes_limits)
     for possible_axes_limit in possible_axes_limits:
         margin_percentage: float = 0.9  # Maximum (axes) limit should be less than 90% of total axes limit
         if maximum_limit < base_limit * margin_percentage * possible_axes_limit:
