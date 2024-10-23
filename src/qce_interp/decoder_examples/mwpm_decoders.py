@@ -202,8 +202,9 @@ class MWPMDecoder(IDecoder):
 
         # (N, 1, D)
         binary_projected_classification: NDArray[np.int_] = self._error_identifier.get_binary_projected_classification(cycle_stabilizer_count=cycle_stabilizer_count)
-        if cycle_stabilizer_count % 2 == 0 and cycle_stabilizer_count != 0:
-            binary_projected_classification = binary_projected_classification ^ 1
+        if self._circuit_description.contains_qubit_refocusing:
+            if cycle_stabilizer_count % 2 == 0 and cycle_stabilizer_count != 0:
+                binary_projected_classification = binary_projected_classification ^ 1
         # (N, M(+1), S)
         syndromes: np.ndarray = IStateClassifierContainer.eigenvalue_to_binary(self._error_identifier.get_defect_stabilizer_classification(cycle_stabilizer_count=cycle_stabilizer_count))
         n, m, s = syndromes.shape
