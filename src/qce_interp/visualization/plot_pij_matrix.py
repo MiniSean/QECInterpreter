@@ -18,7 +18,8 @@ def calculate_correlation_element(x_i: np.ndarray, x_j: np.ndarray) -> float:
     """Source: https://arxiv.org/pdf/1712.02360.pdf"""
     numerator: float = (np.mean(x_i * x_j) - np.mean(x_i) * np.mean(x_j))
     denominator = 1 - 2 * np.mean((x_i + x_j) % 2)
-    return 0.5 - np.sqrt(1 / 4 - numerator / denominator)
+    clipped_sqrt_element = np.clip(1 / 4 - numerator / denominator, a_min=0.0, a_max=1/4)
+    return 0.5 - np.sqrt(clipped_sqrt_element)
 
 
 def calculate_correlation_matrix(identifier: IErrorDetectionIdentifier, rounds: List[int]) -> np.ndarray:
