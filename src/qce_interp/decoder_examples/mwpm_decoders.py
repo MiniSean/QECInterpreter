@@ -355,15 +355,18 @@ class MWPMDecoderFast(IDecoder):
             error_identifier: IErrorDetectionIdentifier,
             qec_rounds: List[int],
             initial_state_container: InitialStateContainer = InitialStateContainer.empty(),
+            contains_qubit_refocusing: bool = True,
             optimize: bool = True,
+            max_optimization_shots: int = 1000,
     ):
         self._error_identifier: IErrorDetectionIdentifier = error_identifier
         self._initial_state_container: InitialStateContainer = initial_state_container
         self.qec_rounds = qec_rounds
+        self._contains_qubit_refocusing: bool = contains_qubit_refocusing
 
         self.extract_data()
         if optimize:
-            self.optimize_weights()
+            self.optimize_weights(max_shots=max_optimization_shots)
         else:
             # uniform weights by default
             self.space_like_weights = 1
@@ -397,7 +400,7 @@ class MWPMDecoderFast(IDecoder):
         self.H = csc_matrix(create_diagonal_matrix_corrected(self.distance).tolist())
         self.observables = csc_matrix(create_standard_diagonal_matrix(self.distance).tolist())
 
-    def get_fidelity(self, qec_round: int, target_state: np.ndarray = None, qec_round_idx: int = None, max_shots: int = None) -> float:
+    def get_fidelity(self, cycle_stabilizer_count: int, target_state: np.ndarray = None, qec_round_idx: int = None, max_shots: int = None) -> float:
         """
         Output shape: (1)
         - N is the number of measurement repetitions.
@@ -407,20 +410,22 @@ class MWPMDecoderFast(IDecoder):
         """
         # by default step size = 1, starting from 0.
         if qec_round_idx is None:
-            qec_round_idx = qec_round
+            qec_round_idx = cycle_stabilizer_count
         num_shots = len(self.all_defects[qec_round_idx])
         if (max_shots is not None) and (num_shots > max_shots):
             num_shots = max_shots
 
         matching = Matching(self.H, weights=self.space_like_weights,
-                            repetitions=qec_round + 1, timelike_weights=self.time_like_weights,
+                            repetitions=cycle_stabilizer_count + 1, timelike_weights=self.time_like_weights,
                             faults_matrix=self.observables)
 
         corrections = matching.decode_batch(self.all_defects[qec_round_idx][:num_shots])
         corrected_outcomes = (corrections + self.all_data_qubit_outcomes[qec_round_idx][:num_shots]) % 2
         num_error = np.sum(np.sum(corrected_outcomes, axis=1) % 2 == 1)  # initial state is considered later
+        error_rate = num_error / num_shots
         # correct for echo pulses
-        error_rate = num_error / num_shots if (qec_round % 2 == 1 or qec_round == 0) else 1 - num_error / num_shots
+        if self._contains_qubit_refocusing:
+            error_rate = num_error / num_shots if (cycle_stabilizer_count % 2 == 1 or cycle_stabilizer_count == 0) else 1 - num_error / num_shots
         # correct for initial states
         error_rate = error_rate if self.initial_state == 0 else 1 - error_rate
 
@@ -446,8 +451,14 @@ class MWPMDecoderFast(IDecoder):
         initial_weights = np.ones(
             self.distance * 2 - 1) * 0.02  # uniform weights for d data qubits and d-1 ancila qubits
         sigma0 = 10 * 0.25  # determines the optimization step size. cma suggests 15*0.25, here use smaller step size
-        result = cma.fmin(self.get_error_rate_for_optimizer, initial_weights, sigma0,
-                          options={'bounds': [0, 15]}, args=(self._optimized_round, max_shots), eval_initial_x=True)
+        result = cma.fmin(
+            self.get_error_rate_for_optimizer,
+            initial_weights,
+            sigma0,
+            options={'bounds': [0, 15]},
+            args=(self._optimized_round, max_shots),
+            eval_initial_x=True,
+        )
 
         concatenated_weights = result[0]
         self.space_like_weights = concatenated_weights[:self.distance]
