@@ -296,7 +296,7 @@ if __name__ == '__main__':
         InitialStateContainer,
         InitialStateEnum,
     )
-    from qce_circuit.connectivity.connectivity_surface_code import Surface17Layer
+    from qce_circuit.library.repetition_code.repetition_code_connectivity import Repetition9Code
     from qce_interp.visualization import plot_pij_matrix
     import matplotlib.pyplot as plt
 
@@ -310,7 +310,7 @@ if __name__ == '__main__':
             InitialStateEnum.ONE,
             InitialStateEnum.ZERO,
         ]),
-        device_layout=Surface17Layer(),
+        device_layout=Repetition9Code(),
         noise_factory=NoiseFactoryManager(),
     )
     print(manager)
