@@ -11,6 +11,9 @@ from qce_circuit.language import (
 from qce_circuit.library.repetition_code.circuit_constructors import (
     construct_repetition_code_circuit,
 )
+from qce_circuit.library.repetition_code.circuit_components import (
+    IRepetitionCodeDescription,
+)
 from qce_circuit.addon_stim import to_stim
 from qce_circuit.addon_stim.intrf_noise_factory import (
     IStimNoiseDresserFactory,
@@ -248,7 +251,7 @@ class SimulatedDataManager(IDataManager):
         return result
 
     @staticmethod
-    def construct_simulated_repetition_code_data(initial_state: InitialStateContainer, qec_cycles: List[int], nr_ancilla_qubits: int, nr_data_qubits: int, experiment_repetitions: int, noise_factory: IStimNoiseDresserFactory, qubit_index_map: Dict[int, IQubitID]) -> np.ndarray:
+    def construct_simulated_repetition_code_data(initial_state: InitialStateContainer, qec_cycles: List[int], nr_ancilla_qubits: int, nr_data_qubits: int, experiment_repetitions: int, noise_factory: IStimNoiseDresserFactory, qubit_index_map: Dict[int, IQubitID], circuit_description: Optional[IRepetitionCodeDescription] = None) -> np.ndarray:
         """
         Output shape: (N, SUM(QEC-Rounds(+1)), P)
         :param initial_state: Data structure containing an array-like of initial state enum's. Corresponds to qubit order.
@@ -265,6 +268,7 @@ class SimulatedDataManager(IDataManager):
         for qec_cycle in qec_cycles:
             circuit_with_detectors: IDeclarativeCircuit = construct_repetition_code_circuit(
                 initial_state=initial_state,
+                description=circuit_description,
                 qec_cycles=qec_cycle,
             )
             stim_circuit: stim.Circuit = to_stim(circuit_with_detectors)
