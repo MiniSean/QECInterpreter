@@ -10,7 +10,7 @@ from qce_circuit.connectivity.intrf_connectivity import (
     IDeviceLayer,
 )
 from qce_circuit.connectivity.intrf_connectivity_surface_code import (
-    ParityType,
+    StabilizerType,
     IParityGroup,
     IGateGroup,
     FrequencyGroup,
@@ -25,7 +25,7 @@ __all__ = [
     "IConnectivityLayer",
     "IConnectivityStack",
     "IDeviceLayer",
-    "ParityType",
+    "StabilizerType",
     "IParityGroup",
     "IGateGroup",
     "FrequencyGroup",
