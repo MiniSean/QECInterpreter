@@ -163,6 +163,17 @@ def plot_post_selection_fraction_composite(error_identifier: IErrorDetectionIden
         label='Leakage (Ancilla) fraction',
         **kwargs,
     )
+    plot_post_selection_fraction(
+        error_identifier=error_identifier.copy_with_post_selection(
+            use_heralded_post_selection=False,
+            use_projected_leakage_post_selection=False,
+            use_all_projected_leakage_post_selection=True,
+            use_stabilizer_leakage_post_selection=False,
+        ),
+        qec_rounds=qec_rounds,
+        label='Leakage final-meas (Data & Ancilla) fraction',
+        **kwargs,
+    )
 
     # Default
     minimum_limit = get_minimum_plotted_value(ax)
