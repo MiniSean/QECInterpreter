@@ -17,10 +17,10 @@ from qce_circuit.connectivity.connectivity_surface_code import (
     Surface17Layer,
     IParityGroup,
     ParityGroup,
-    ParityType as StabilizerType
+    StabilizerType
 )
 from qce_circuit.structure.acquisition_indexing.kernel_repetition_code import RepetitionExperimentKernel
-from qce_circuit.library.repetition_code.repetition_code_connectivity import Repetition9Round6Code as Repetition17Layer
+from qce_circuit.library.repetition_code.repetition_code_connectivity import Repetition9Code as Repetition17Layer
 
 
 class DefectIdentifierTestCase(unittest.TestCase):
