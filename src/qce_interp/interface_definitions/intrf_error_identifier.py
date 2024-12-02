@@ -6,7 +6,7 @@ from functools import lru_cache
 from collections import OrderedDict
 import numpy as np
 from numpy.typing import NDArray
-from typing import List, Dict
+from typing import List, Dict, Optional
 from xarray import DataArray
 from enum import Enum, unique
 from qce_interp.utilities.custom_exceptions import InterfaceMethodException, InsufficientParityInformationException
@@ -157,12 +157,13 @@ class IErrorDetectionIdentifier(ABC):
         raise InterfaceMethodException
 
     @abstractmethod
-    def copy_with_post_selection(self, use_heralded_post_selection: bool = False, use_projected_leakage_post_selection: bool = False, use_all_projected_leakage_post_selection: bool = False, use_stabilizer_leakage_post_selection: bool = False, ) -> 'IErrorDetectionIdentifier':
+    def copy_with_post_selection(self, use_heralded_post_selection: bool = False, use_projected_leakage_post_selection: bool = False, use_all_projected_leakage_post_selection: bool = False, use_stabilizer_leakage_post_selection: bool = False, post_selection_qubits: Optional[List[IQubitID]] = None) -> 'IErrorDetectionIdentifier':
         """
         :param use_heralded_post_selection: Use post-selection on heralded initialization.
         :param use_projected_leakage_post_selection: Use post-selection on leakage events during (final) (data) qubit measurement projections.
         :param use_all_projected_leakage_post_selection: Use post-selection on leakage events during (final) (data & ancilla) qubit measurement projections.
         :param use_stabilizer_leakage_post_selection: Use post-selection on leakage events during (any) (ancilla) stabilizer measurement projections.
+        :param post_selection_qubits: (Optional) array-like of qubit-ID's to post-select on. By default, the post-selection qubit-ID's are copied from self.
         :return: Newly constructed instance inheriting IErrorDetectionIdentifier interface based on post-selection settings.
         """
         raise InterfaceMethodException
@@ -342,6 +343,7 @@ class ErrorDetectionIdentifier(IErrorDetectionIdentifier):
             use_projected_leakage_post_selection: bool = False,
             use_all_projected_leakage_post_selection: bool = False,
             use_stabilizer_leakage_post_selection: bool = False,
+            post_selection_qubits: Optional[List[IQubitID]] = None,
             use_computational_parity: bool = False,
     ):
         self._classifier_lookup: Dict[IQubitID, IStateClassifierContainer] = classifier_lookup
@@ -354,6 +356,8 @@ class ErrorDetectionIdentifier(IErrorDetectionIdentifier):
         self._use_projected_leakage_post_selection: bool = use_projected_leakage_post_selection
         self._use_all_projected_leakage_post_selection: bool = use_all_projected_leakage_post_selection
         self._use_stabilizer_leakage_post_selection: bool = use_stabilizer_leakage_post_selection
+        # Array-like of qubit-ID's to take into consideration when post-selecting
+        self._post_selection_qubits: List[IQubitID] = involved_qubit_ids if post_selection_qubits is None else post_selection_qubits
         self._parity_index_lookup: Dict[IQubitID, NDArray[np.int_]] = self.get_parity_index_lookup(
             parity_layout=self._device_layout,
             involved_data_qubit_ids=self.involved_data_qubit_ids,
@@ -600,14 +604,18 @@ class ErrorDetectionIdentifier(IErrorDetectionIdentifier):
         result = result.transpose((1, 2, 0))
         return result
 
-    def copy_with_post_selection(self, use_heralded_post_selection: bool = False, use_projected_leakage_post_selection: bool = False, use_all_projected_leakage_post_selection: bool = False, use_stabilizer_leakage_post_selection: bool = False, ) -> 'IErrorDetectionIdentifier':
+    def copy_with_post_selection(self, use_heralded_post_selection: bool = False, use_projected_leakage_post_selection: bool = False, use_all_projected_leakage_post_selection: bool = False, use_stabilizer_leakage_post_selection: bool = False, post_selection_qubits: Optional[List[IQubitID]] = None) -> 'IErrorDetectionIdentifier':
         """
         :param use_heralded_post_selection: Use post-selection on heralded initialization.
         :param use_projected_leakage_post_selection: Use post-selection on leakage events during (final) (data) qubit measurement projections.
         :param use_all_projected_leakage_post_selection: Use post-selection on leakage events during (final) (data & ancilla) qubit measurement projections.
         :param use_stabilizer_leakage_post_selection: Use post-selection on leakage events during (any) (ancilla) stabilizer measurement projections.
+        :param post_selection_qubits: (Optional) array-like of qubit-ID's to post-select on. By default, the post-selection qubit-ID's are copied from self.
         :return: Newly constructed instance inheriting IErrorDetectionIdentifier interface based on post-selection settings.
         """
+        if post_selection_qubits is None:
+            post_selection_qubits = self._post_selection_qubits
+
         return ErrorDetectionIdentifier(
             classifier_lookup=self._classifier_lookup,
             index_kernel=self._index_kernel,
@@ -618,12 +626,13 @@ class ErrorDetectionIdentifier(IErrorDetectionIdentifier):
             use_projected_leakage_post_selection=use_projected_leakage_post_selection,
             use_all_projected_leakage_post_selection=use_all_projected_leakage_post_selection,
             use_stabilizer_leakage_post_selection=use_stabilizer_leakage_post_selection,
+            post_selection_qubits=post_selection_qubits,
             use_computational_parity=self._use_computational_parity,
         )
     # endregion
 
     # region Class Methods
-    def get_heralded_post_selection_mask(self, cycle_stabilizer_count: int) -> NDArray[np.bool_]:
+    def get_heralded_post_selection_mask(self, cycle_stabilizer_count: int, post_selection_qubits: List[IQubitID]) -> NDArray[np.bool_]:
         """
         Output shape: (N,)
         - N is the number of measurement repetitions.
@@ -631,6 +640,8 @@ class ErrorDetectionIdentifier(IErrorDetectionIdentifier):
         - P is the number of qubit elements.
         :return: Tensor of boolean mask at specific cycle.
         """
+        # Determine which qubit-ID's are considered when post-selecting
+        qubit_mask: List[IQubitID] = [qubit_id for qubit_id in self.involved_qubit_ids if qubit_id in post_selection_qubits]
         # (P, N, M) Heralded acquisition index slices
         index_slices: NDArray[np.int_] = np.asarray([
             self._index_kernel.get_heralded_cycle_acquisition_indices(qubit_id=qubit_id, cycle_stabilizer_count=cycle_stabilizer_count)
@@ -638,7 +649,7 @@ class ErrorDetectionIdentifier(IErrorDetectionIdentifier):
         ])
         # (P, N, M) Binary classification of heralded acquisition
         heralded_binary_tensor: np.ndarray = np.zeros(index_slices.shape, dtype=np.int_)
-        for i, qubit_id in enumerate(self.involved_qubit_ids):
+        for i, qubit_id in enumerate(qubit_mask):
             state_classifier: IStateClassifierContainer = self._classifier_lookup[qubit_id]
             index_sub_slices: NDArray[np.int_] = index_slices[i]
             reshaped_container: IStateClassifierContainer = state_classifier.reshape(
@@ -654,7 +665,7 @@ class ErrorDetectionIdentifier(IErrorDetectionIdentifier):
         result: NDArray[np.bool_] = np.all(heralded_binary_tensor == 0, axis=1)
         return result
 
-    def get_projected_leakage_post_selection_mask(self, cycle_stabilizer_count: int) -> NDArray[np.bool_]:
+    def get_projected_leakage_post_selection_mask(self, cycle_stabilizer_count: int, post_selection_qubits: List[IQubitID]) -> NDArray[np.bool_]:
         """
         Output shape: (N,)
         - N is the number of measurement repetitions.
@@ -662,6 +673,8 @@ class ErrorDetectionIdentifier(IErrorDetectionIdentifier):
         - D is the number of data qubits.
         :return: Tensor of boolean mask for leakage during projected acquisition at specific cycle.
         """
+        # Determine which qubit-ID's are considered when post-selecting
+        qubit_mask: List[IQubitID] = [qubit_id for qubit_id in self.involved_data_qubit_ids if qubit_id in post_selection_qubits]
         # (D, N, 1) Projected acquisition index slices
         index_slices: NDArray[np.int_] = np.asarray([
             self._index_kernel.get_projected_cycle_acquisition_indices(qubit_id=qubit_id, cycle_stabilizer_count=cycle_stabilizer_count)
@@ -669,7 +682,7 @@ class ErrorDetectionIdentifier(IErrorDetectionIdentifier):
         ])
         # (D, N, 1) Ternary classification of projected acquisition
         projected_ternary_tensor: np.ndarray = np.zeros(index_slices.shape, dtype=np.int_)
-        for i, qubit_id in enumerate(self.involved_data_qubit_ids):
+        for i, qubit_id in enumerate(qubit_mask):
             state_classifier: IStateClassifierContainer = self._classifier_lookup[qubit_id]
             index_sub_slices: NDArray[np.int_] = index_slices[i]
             reshaped_container: IStateClassifierContainer = state_classifier.reshape(
@@ -685,7 +698,7 @@ class ErrorDetectionIdentifier(IErrorDetectionIdentifier):
         result: NDArray[np.bool_] = np.all(projected_ternary_tensor < 2, axis=1)
         return result
 
-    def get_all_projected_leakage_post_selection_mask(self, cycle_stabilizer_count: int) -> NDArray[np.bool_]:
+    def get_all_projected_leakage_post_selection_mask(self, cycle_stabilizer_count: int, post_selection_qubits: List[IQubitID]) -> NDArray[np.bool_]:
         """
         Output shape: (N,)
         - N is the number of measurement repetitions.
@@ -695,8 +708,13 @@ class ErrorDetectionIdentifier(IErrorDetectionIdentifier):
         """
         # Guard clause, return only data-qubit post-selection mask in-case of 0-QEC-round
         if cycle_stabilizer_count == 0:
-            return self.get_projected_leakage_post_selection_mask(cycle_stabilizer_count=cycle_stabilizer_count)
+            return self.get_projected_leakage_post_selection_mask(
+                cycle_stabilizer_count=cycle_stabilizer_count,
+                post_selection_qubits=post_selection_qubits,
+            )
 
+        # Determine which qubit-ID's are considered when post-selecting
+        qubit_mask: List[IQubitID] = [qubit_id for qubit_id in self.involved_qubit_ids if qubit_id in post_selection_qubits]
         # (P, N, 1) Projected acquisition index slices
         index_slices: NDArray[np.int_] = np.asarray([
             self._index_kernel.get_projected_cycle_acquisition_indices(qubit_id=qubit_id, cycle_stabilizer_count=cycle_stabilizer_count)
@@ -704,7 +722,7 @@ class ErrorDetectionIdentifier(IErrorDetectionIdentifier):
         ])
         # (P, N, 1) Ternary classification of projected acquisition
         projected_ternary_tensor: np.ndarray = np.zeros(index_slices.shape, dtype=np.int_)
-        for i, qubit_id in enumerate(self.involved_qubit_ids):
+        for i, qubit_id in enumerate(qubit_mask):
             state_classifier: IStateClassifierContainer = self._classifier_lookup[qubit_id]
             index_sub_slices: NDArray[np.int_] = index_slices[i]
             reshaped_container: IStateClassifierContainer = state_classifier.reshape(
@@ -720,14 +738,16 @@ class ErrorDetectionIdentifier(IErrorDetectionIdentifier):
         result: NDArray[np.bool_] = np.all(projected_ternary_tensor < 2, axis=1)
         return result
 
-    def get_stabilizer_leakage_post_selection_mask(self, cycle_stabilizer_count: int) -> NDArray[np.bool_]:
+    def get_stabilizer_leakage_post_selection_mask(self, cycle_stabilizer_count: int, post_selection_qubits: List[IQubitID]) -> NDArray[np.bool_]:
         """
         Output shape: (N,)
         - N is the number of measurement repetitions.
         - M is the number of stabilizer repetitions.
-        - S is the number of data qubits.
+        - S is the number of ancilla qubits.
         :return: Tensor of boolean mask for leakage during projected acquisition at specific cycle.
         """
+        # Determine which qubit-ID's are considered when post-selecting
+        qubit_mask: List[IQubitID] = [qubit_id for qubit_id in self.involved_stabilizer_qubit_ids if qubit_id in post_selection_qubits]
         # (S, N, M) Projected acquisition index slices
         index_slices: NDArray[np.int_] = np.asarray([
             self._index_kernel.get_stabilizer_and_projected_cycle_acquisition_indices(qubit_id=qubit_id, cycle_stabilizer_count=cycle_stabilizer_count)
@@ -740,7 +760,7 @@ class ErrorDetectionIdentifier(IErrorDetectionIdentifier):
 
         # (S, N, M) Ternary classification of projected acquisition
         stabilizer_ternary_tensor: np.ndarray = np.zeros(index_slices.shape, dtype=np.int_)
-        for i, qubit_id in enumerate(self.involved_stabilizer_qubit_ids):
+        for i, qubit_id in enumerate(qubit_mask):
             state_classifier: IStateClassifierContainer = self._classifier_lookup[qubit_id]
             index_sub_slices: NDArray[np.int_] = index_slices[i]
             reshaped_container: IStateClassifierContainer = state_classifier.reshape(
@@ -763,27 +783,37 @@ class ErrorDetectionIdentifier(IErrorDetectionIdentifier):
         - N is the number of measurement repetitions.
         :return: Tensor of boolean mask based on post-selection conditions (at specific cycle).
         """
+        # Data allocation
+        post_selection_qubits: List[IQubitID] = self._post_selection_qubits
         full_pass_mask: NDArray[np.bool_] = np.full(shape=(self._index_kernel.experiment_repetitions,), fill_value=True, dtype=np.bool_)
         result: NDArray[np.bool_] = full_pass_mask
         # (Optionally) add heralded post-selection
         if self.include_heralded_post_selection:
             heralded_selection_mask = self.get_heralded_post_selection_mask(
-                cycle_stabilizer_count=cycle_stabilizer_count)
+                cycle_stabilizer_count=cycle_stabilizer_count,
+                post_selection_qubits=post_selection_qubits,
+            )
             result = np.logical_and(result, heralded_selection_mask)
         # (Optionally) add leakage (during data-qubit projection) post-selection
         if self.include_projected_leakage_post_selection:
             projected_leakage_selection_mask = self.get_projected_leakage_post_selection_mask(
-                cycle_stabilizer_count=cycle_stabilizer_count)
+                cycle_stabilizer_count=cycle_stabilizer_count,
+                post_selection_qubits=post_selection_qubits,
+            )
             result = np.logical_and(result, projected_leakage_selection_mask)
         # (Optionally) add leakage (during data-qubit and ancilla-qubit projection) post-selection
         if self.include_all_projected_leakage_post_selection:
             all_projected_leakage_selection_mask = self.get_all_projected_leakage_post_selection_mask(
-                cycle_stabilizer_count=cycle_stabilizer_count)
+                cycle_stabilizer_count=cycle_stabilizer_count,
+                post_selection_qubits=post_selection_qubits,
+            )
             result = np.logical_and(result, all_projected_leakage_selection_mask)
         # (Optionally) add leakage (during stabilizer-qubit cycle) post-selection
         if self.include_stabilizer_leakage_post_selection:
             stabilizer_leakage_selection_mask = self.get_stabilizer_leakage_post_selection_mask(
-                cycle_stabilizer_count=cycle_stabilizer_count)
+                cycle_stabilizer_count=cycle_stabilizer_count,
+                post_selection_qubits=post_selection_qubits,
+            )
             result = np.logical_and(result, stabilizer_leakage_selection_mask)
         return result
     # endregion
@@ -1324,12 +1354,13 @@ class LabeledErrorDetectionIdentifier(ILabeledErrorDetectionIdentifier):
 
         return data_array
 
-    def copy_with_post_selection(self, use_heralded_post_selection: bool = False, use_projected_leakage_post_selection: bool = False, use_all_projected_leakage_post_selection: bool = False, use_stabilizer_leakage_post_selection: bool = False, ) -> 'IErrorDetectionIdentifier':
+    def copy_with_post_selection(self, use_heralded_post_selection: bool = False, use_projected_leakage_post_selection: bool = False, use_all_projected_leakage_post_selection: bool = False, use_stabilizer_leakage_post_selection: bool = False, post_selection_qubits: Optional[List[IQubitID]] = None) -> 'IErrorDetectionIdentifier':
         """
         :param use_heralded_post_selection: Use post-selection on heralded initialization.
         :param use_projected_leakage_post_selection: Use post-selection on leakage events during (final) (data) qubit measurement projections.
         :param use_all_projected_leakage_post_selection: Use post-selection on leakage events during (final) (data & ancilla) qubit measurement projections.
         :param use_stabilizer_leakage_post_selection: Use post-selection on leakage events during (any) (ancilla) stabilizer measurement projections.
+        :param post_selection_qubits: (Optional) array-like of qubit-ID's to post-select on. By default, the post-selection qubit-ID's are copied from self.
         :return: Newly constructed instance inheriting IErrorDetectionIdentifier interface based on post-selection settings.
         """
         return LabeledErrorDetectionIdentifier(
@@ -1338,6 +1369,7 @@ class LabeledErrorDetectionIdentifier(ILabeledErrorDetectionIdentifier):
                 use_projected_leakage_post_selection=use_projected_leakage_post_selection,
                 use_all_projected_leakage_post_selection=use_all_projected_leakage_post_selection,
                 use_stabilizer_leakage_post_selection=use_stabilizer_leakage_post_selection,
+                post_selection_qubits=post_selection_qubits,
             )
         )
 
