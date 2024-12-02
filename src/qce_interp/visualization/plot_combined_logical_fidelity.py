@@ -8,7 +8,7 @@ from qce_interp.interface_definitions.intrf_syndrome_decoder import IDecoder
 from qce_interp.decoder_examples.mwpm_decoders import MWPMDecoder
 from qce_circuit.library.repetition_code.circuit_components import IRepetitionCodeDescription
 from qce_circuit.language.intrf_declarative_circuit import InitialStateContainer
-from qce_interp.visualization.plot_post_selection_fraction import plot_post_selection_fraction_composite
+from qce_interp.visualization.plot_post_selection_fraction import plot_retained_fraction_composite
 from qce_interp.visualization.plot_defect_rate import plot_all_defect_rate
 from qce_interp.visualization.plot_logical_fidelity import (
     plot_fidelity,
@@ -128,7 +128,7 @@ def plot_combined_overview(decoder: IDecoder, error_identifier: IErrorDetectionI
             AxesFormat(),
         )
     }
-    plot_post_selection_fraction_composite(
+    plot_retained_fraction_composite(
         error_identifier=error_identifier,
         qec_rounds=qec_rounds,
         **kwargs_postselect,
