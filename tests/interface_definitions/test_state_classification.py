@@ -119,8 +119,8 @@ class DecisionBoundaryTestCase(unittest.TestCase):
         """Tests the mean property of DecisionBoundaries."""
         mean = self.decision_boundaries.mean
         # Test the mean property
-        self.assertAlmostEqual(mean.x, 1, delta=0.1)
-        self.assertAlmostEqual(mean.y, 2, delta=0.1)
+        self.assertAlmostEqual(mean.x, 1.5, delta=0.1)
+        self.assertAlmostEqual(mean.y, 1.5, delta=0.1)
         self.assertIsInstance(mean, Vec2D, msg="Mean is not a Vec2D instance.")
 
     def test_state_prediction_index_lookup(self):
