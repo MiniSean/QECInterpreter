@@ -18,7 +18,8 @@ def calculate_correlation_element(x_i: np.ndarray, x_j: np.ndarray) -> float:
     """Source: https://arxiv.org/pdf/1712.02360.pdf"""
     numerator: float = (np.mean(x_i * x_j) - np.mean(x_i) * np.mean(x_j))
     denominator = 1 - 2 * np.mean((x_i + x_j) % 2)
-    return 0.5 - np.sqrt(1 / 4 - numerator / denominator)
+    clipped_sqrt_element = np.clip(1 / 4 - numerator / denominator, a_min=0.0, a_max=1/4)
+    return 0.5 - np.sqrt(clipped_sqrt_element)
 
 
 def calculate_correlation_matrix(identifier: IErrorDetectionIdentifier, rounds: List[int]) -> np.ndarray:
@@ -75,9 +76,10 @@ def _plot_pij_matrix(pij_matrix: np.ndarray, ordered_qubit_ids: List[IQubitID], 
     ax.set_yticklabels([])
     # Write qubit labels
     ordered_qubit_names: List[str] = [qubit_id.id for qubit_id in ordered_qubit_ids]
+    label_distance: float = (1.5 / 10) * R
     for i, q in enumerate(ordered_qubit_names):
-        ax.text(i*R+(R-1)/2, -3.5, q, va='center', ha='center', size=12)
-        ax.text(-3.5, i*R+(R-1)/2, q, va='center', ha='center', size=12)
+        ax.text(i*R+(R-1)/2, -label_distance, q, va='center', ha='center', size=12)
+        ax.text(-label_distance, i*R+(R-1)/2, q, va='center', ha='center', size=12)
     # Minor tick labels
     ticks = np.arange(0, R+1, 1.0, dtype=np.int_)
     if not include_minor_tick_lines:

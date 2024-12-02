@@ -6,10 +6,15 @@ from dataclasses import dataclass, field
 from enum import Enum, unique
 import itertools
 import numpy as np
+from warnings import warn
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from numpy.typing import NDArray
 from typing import List, Dict, Optional, Callable, TypeVar
-from qce_interp.utilities.custom_exceptions import InterfaceMethodException
+from qce_circuit.utilities.array_manipulation import unique_in_order
+from qce_interp.utilities.custom_exceptions import (
+    InterfaceMethodException,
+    ZeroClassifierShotsException,
+)
 from qce_interp.utilities.geometric_definitions import Vec2D
 from qce_circuit.structure.acquisition_indexing.intrf_stabilizer_index_kernel import StateKey
 
@@ -25,7 +30,7 @@ class ParityType(Enum):
 class StateAcquisition:
     """Data class, containing (complex) acquisition information, together with a state key."""
     state: StateKey
-    shots: NDArray[np.complex_]
+    shots: NDArray[np.complex128]
 
     # region Class Properties
     @property
@@ -71,17 +76,35 @@ class StateBoundaryKey:
 
 
 @dataclass(frozen=True)
+class DirectedStateBoundaryKey(StateBoundaryKey):
+    """Data class, containing ordered state-keys."""
+
+    # region Class Methods
+    def __hash__(self):
+        """
+        Sorts individual state hashes such that the order IS maintained.
+        Making hash comparison dependent of order.
+        """
+        return hash((self.state_a.__hash__(), self.state_b.__hash__()))
+    # endregion
+
+
+@dataclass(frozen=True)
 class DecisionBoundaries:
     """Data class, containing decision boundaries based on states."""
     boundary_lookup: Dict[StateBoundaryKey, Vec2D]
     _discriminator: LinearDiscriminantAnalysis
     _state_lookup: Dict[StateKey, int]
     """Lookup dictionary that maps state key to discriminator prediction index."""
+    _mean: Optional[Vec2D] = field(default=None)
+    """Explicit specification of boundary means, necessary when handling 2-state classification."""
 
     # region Class Properties
     @property
     def mean(self) -> Vec2D:
         """:return: Mean IQ-vector based on state boundaries."""
+        if self._mean is not None:
+            return self._mean
         boundary_points: np.ndarray = np.asarray([point.to_vector() for point in self.boundary_lookup.values()])
         mean_point: np.ndarray = np.mean(boundary_points, axis=0)
         return Vec2D.from_vector(mean_point)
@@ -119,13 +142,13 @@ class DecisionBoundaries:
             return None
         return self.boundary_lookup[boundary_key]
 
-    def get_binary_predictions(self, shots: NDArray[np.complex_]) -> NDArray[np.int_]:
+    def get_binary_predictions(self, shots: NDArray[np.complex128]) -> NDArray[np.int_]:
         """
         NOTE: Forces classification of element in group 1 or 2, disregarding other groups.
         NOTE: Returns integer prediction value, can be mapped to state-enum using self.prediction_index_to_state_lookup.
         :return: Array-like of State key predictions based on shots discrimination.
         """
-        shot_reshaped: NDArray[np.float_] = StateAcquisitionContainer.complex_to_real_imag(shots)
+        shot_reshaped: NDArray[np.float64] = StateAcquisitionContainer.complex_to_real_imag(shots)
         # Step 1: Predict probabilities
         probabilities: np.ndarray = self._discriminator.predict_proba(shot_reshaped)
         # Step 2: Compare probabilities for groups 1 and 2
@@ -137,35 +160,34 @@ class DecisionBoundaries:
         state_indices: NDArray[np.int_] = np.where(prob_group_1 > prob_group_2, 0, 1)  # 0 for group 1, 1 for group 2
         return state_indices
 
-    def get_predictions(self, shots: NDArray[np.complex_]) -> NDArray[np.int_]:
+    def get_predictions(self, shots: NDArray[np.complex128]) -> NDArray[np.int_]:
         """
         NOTE: Returns integer prediction value, can be mapped to state-enum using self.prediction_index_to_state_lookup.
         :return: Array-like of State key predictions based on shots discrimination.
         """
-        shot_reshaped: NDArray[np.float_] = StateAcquisitionContainer.complex_to_real_imag(shots)
+        shot_reshaped: NDArray[np.float64] = StateAcquisitionContainer.complex_to_real_imag(shots)
         state_indices: NDArray[np.int_] = self._discriminator.predict(shot_reshaped)  # 1 indexed
         return state_indices
 
-    def get_prediction(self, shot: np.complex_) -> StateKey:
+    def get_prediction(self, shot: np.complex128) -> StateKey:
         """:return: State key prediction based on shot discrimination."""
         state_indices: NDArray[np.int_] = self.get_predictions(shots=np.asarray([shot]))
         int_to_enum = self.prediction_index_to_state_lookup
         return int_to_enum[state_indices[0]]
 
-    def get_fidelity(self, shots: NDArray[np.complex_], assigned_state: StateKey) -> float:
+    def get_fidelity(self, shots: NDArray[np.complex128], assigned_state: StateKey) -> float:
         """:return: Assignment fidelity defined as the probability of shots being part of assigned state."""
-        shots_reshaped: NDArray[np.float_] = StateAcquisitionContainer.complex_to_real_imag(shots)
+        shots_reshaped: NDArray[np.float64] = StateAcquisitionContainer.complex_to_real_imag(shots)
         state_indices: NDArray[np.int_] = self._discriminator.predict(shots_reshaped)  # 1 indexed
         return float(np.mean(state_indices == self._state_lookup[assigned_state]))
 
-    def post_select_on(self, shots_to_filter: NDArray[np.complex_], conditional_shots: NDArray[np.complex_],
-                       conditional_state: StateKey) -> NDArray[np.complex_]:
+    def post_select_on(self, shots_to_filter: NDArray[np.complex128], conditional_shots: NDArray[np.complex128], conditional_state: StateKey) -> NDArray[np.complex128]:
         """:return: Filtered shots based on conditional shots (of same length) and conditional state."""
         # Guard clause, if conditional shots are empty, return shots without filtering
         if len(conditional_shots) == 0:
             return shots_to_filter
 
-        conditional_shots_reshaped: NDArray[np.float_] = StateAcquisitionContainer.complex_to_real_imag(
+        conditional_shots_reshaped: NDArray[np.float64] = StateAcquisitionContainer.complex_to_real_imag(
             conditional_shots)
         state_indices: NDArray[np.int_] = self._discriminator.predict(conditional_shots_reshaped)  # 1 indexed
         conditional_index: int = self._state_lookup[conditional_state]
@@ -192,15 +214,9 @@ class DecisionBoundaries:
 
         # Handling different number of classes
         num_classes = len(container.state_acquisition_lookup)
-        if num_classes == 2:
-            # In binary classification, there's only one discriminant function
-            # The second "virtual" coefficient is the negative of the first
-            coef_values = [discriminator.coef_[0], -discriminator.coef_[0]]
-            intercept_values = [discriminator.intercept_[0], -discriminator.intercept_[0]]
-        else:
-            # In multi-class classification, use the provided coefficients and intercepts
-            coef_values = discriminator.coef_
-            intercept_values = discriminator.intercept_
+        # In multi-class classification, use the provided coefficients and intercepts
+        coef_values = discriminator.coef_
+        intercept_values = discriminator.intercept_
 
         # Map coefficients
         coef_lookup: Dict[StateKey, Vec2D] = {state: Vec2D.from_vector(value) for state, value in
@@ -212,6 +228,22 @@ class DecisionBoundaries:
         # Create an iterator for all unique combinations of StateKey values, excluding same-key pairs
         intersection_lookup: Dict[StateBoundaryKey, Vec2D] = {}
         states: List[StateKey] = list(container.state_acquisition_lookup.keys())
+        if num_classes == 2:
+            state_a = states[0]
+            state_b = states[1]
+            boundary_key: StateBoundaryKey = StateBoundaryKey(state_a=state_a, state_b=state_b)
+            intersection_lookup[boundary_key] = DecisionBoundaries._calculate_intersection_binary_case(
+                coef1=coef_lookup[state_a],
+                intercept1=intercept_lookup[state_a],
+            )
+            center: Vec2D = 0.5 * (container.state_acquisition_lookup[state_a].center + container.state_acquisition_lookup[state_b].center)
+            return DecisionBoundaries(
+                boundary_lookup=intersection_lookup,
+                _discriminator=discriminator,
+                _state_lookup=state_lookup,
+                _mean=center,
+            )
+
         for state_a, state_b in itertools.combinations(states, 2):
             boundary_key: StateBoundaryKey = StateBoundaryKey(state_a=state_a, state_b=state_b)
             intersection_lookup[boundary_key] = DecisionBoundaries._calculate_intersection(
@@ -242,20 +274,79 @@ class DecisionBoundaries:
         elif denominator == 0 and numerator == 0:
             _x: float = 1.0
         else:
-            raise ZeroDivisionError(f"During instersect calculation of {coef1} and {coef2}.")
+            warn(f"[ZeroDivisionError] During intersect calculation of {coef1} and {coef2}.")
+            denominator = 1e-6
+            _x: float = numerator / denominator
+
         _y: float = -coef1.x / coef1.y * _x - intercept1 / coef1.y
         return Vec2D(
             x=_x,
             y=_y,
         )
+
+    @staticmethod
+    def _calculate_intersection_binary_case(coef1: Vec2D, intercept1: float):
+        """
+        :return: Intersection point of single linear equations defined by coefficients and intercepts.
+        """
+        x_intercept = -intercept1 / coef1.x if coef1.x != 0 else np.inf
+        y_intercept = -intercept1 / coef1.y if coef1.y != 0 else np.inf
+        return Vec2D(x=x_intercept, y=y_intercept)
+    # endregion
+
+
+class IStateAcquisitionContainer(ABC):
+    """
+    Interface class, describing state acquisition and classification for state 0, 1 (and 2).
+    """
+
+    # region Interface Properties
+    @property
+    @abstractmethod
+    def contained_states(self) -> List[StateKey]:
+        """:return: Array-like of unique contained states."""
+        raise InterfaceMethodException
+
+    @property
+    @abstractmethod
+    def classification_boundaries(self) -> DecisionBoundaries:
+        """:return: DecisionBoundaries."""
+        raise InterfaceMethodException
+
+    @property
+    @abstractmethod
+    def concatenated_shots(self) -> NDArray[np.complex128]:
+        """:return: Array-like of (complex-valued) concatenated acquisition shots."""
+        raise InterfaceMethodException
+    # endregion
+
+    # region Interface Methods
+    @abstractmethod
+    def get_state_acquisition(self, state: StateKey) -> StateAcquisition:
+        """:return: StateAcquisition based on state key."""
+        raise InterfaceMethodException
     # endregion
 
 
 @dataclass(frozen=True)
-class StateAcquisitionContainer:
-    """Data class, containing raw acquisition shots for state 0, 1 and 2."""
+class StateAcquisitionContainer(IStateAcquisitionContainer):
+    """
+    Data class, containing raw acquisition shots for state 0, 1 and 2.
+    """
     state_acquisition_lookup: Dict[StateKey, StateAcquisition]
     decision_boundaries: DecisionBoundaries = field(init=False)
+
+    # region Interface Properties
+    @property
+    def contained_states(self) -> List[StateKey]:
+        """:return: Array-like of unique contained states."""
+        return unique_in_order(self.state_acquisition_lookup.keys())
+
+    @property
+    def classification_boundaries(self) -> DecisionBoundaries:
+        """:return: DecisionBoundaries."""
+        return self.decision_boundaries
+    # endregion
 
     # region Class Properties
     @property
@@ -267,9 +358,9 @@ class StateAcquisitionContainer:
         )
 
     @property
-    def concatenated_shots(self) -> NDArray[np.complex_]:
+    def concatenated_shots(self) -> NDArray[np.complex128]:
         """:return: Array-like of (complex-valued) concatenated acquisition shots."""
-        shots: List[NDArray[np.complex_]] = [value.shots for value in self.state_acquisition_lookup.values()]
+        shots: List[NDArray[np.complex128]] = [value.shots for value in self.state_acquisition_lookup.values()]
         return np.concatenate(shots)
 
     @property
@@ -278,7 +369,12 @@ class StateAcquisitionContainer:
         labels = [[state.value] * len(acquisition.shots) for state, acquisition in
                   self.state_acquisition_lookup.items()]
         return np.concatenate(labels)
+    # endregion
 
+    # region Interface Methods
+    def get_state_acquisition(self, state: StateKey) -> StateAcquisition:
+        """:return: StateAcquisition based on state key."""
+        return self.state_acquisition_lookup[state]
     # endregion
 
     # region Class Methods
@@ -294,7 +390,6 @@ class StateAcquisitionContainer:
                 for acquisition in acquisitions
             }
         )
-
     # endregion
 
     # region Static Class Methods
@@ -339,7 +434,7 @@ class StateAcquisitionContainer:
         return complex_data  # .reshape(-1, 1)
 
     @staticmethod
-    def get_threshold_estimate(shots_0: NDArray[np.complex_], shots_1: NDArray[np.complex_]) -> float:
+    def get_threshold_estimate(shots_0: NDArray[np.complex128], shots_1: NDArray[np.complex128]) -> float:
         """
         Estimate 0-1 threshold based on x-axes projection.
 
@@ -362,20 +457,21 @@ class StateAcquisitionContainer:
 class AssignmentFidelityMatrix:
     """Data class, containing assignment fidelity matrix and array-like of state-key."""
     state_keys: List[StateKey]
-    matrix: NDArray[np.float_]
+    matrix: NDArray[np.float64]
 
     # region Class Methods
     @classmethod
-    def from_acquisition_container(cls, acquisition_container: StateAcquisitionContainer) -> 'AssignmentFidelityMatrix':
+    def from_acquisition_container(cls, acquisition_container: IStateAcquisitionContainer) -> 'AssignmentFidelityMatrix':
         """:return: Class method constructor based on decision boundaries."""
         # Data allocation
-        decision_boundaries: DecisionBoundaries = acquisition_container.decision_boundaries
-        states: List[StateKey] = list(acquisition_container.state_acquisition_lookup.keys())
+        decision_boundaries: DecisionBoundaries = acquisition_container.classification_boundaries
+        states: List[StateKey] = list(acquisition_container.contained_states)
         fidelity_matrix: np.ndarray = np.zeros(shape=(len(states), len(states)))
-        for i, state_acquisision in enumerate(acquisition_container.state_acquisition_lookup.values()):
+        for i, _state_key in enumerate(states):
+            state_acquisition = acquisition_container.get_state_acquisition(state=_state_key)
             for j, state in enumerate(states):
                 fidelity_matrix[i][j] = decision_boundaries.get_fidelity(
-                    shots=state_acquisision.shots,
+                    shots=state_acquisition.shots,
                     assigned_state=state,
                 )
 
@@ -566,7 +662,7 @@ class StateClassifierContainer(IStateClassifierContainer):
 @dataclass(frozen=True)
 class ShotsClassifierContainer(IStateClassifierContainer):
     """Data class, containing classified states based on (complex) acquisition and decision boundaries."""
-    shots: NDArray[np.complex_]
+    shots: NDArray[np.complex128]
     decision_boundaries: DecisionBoundaries
     _expected_parity: ParityType = field(default=ParityType.EVEN)
 
@@ -581,6 +677,10 @@ class ShotsClassifierContainer(IStateClassifierContainer):
     @property
     def state_classifier(self) -> StateClassifierContainer:
         """:return: Pure state classifier based on self."""
+        # Guard clause, if shots is empty, raise exception
+        if self.shots.size == 0:
+            raise ZeroClassifierShotsException(f"Array size of shots used to perform state-classification is {self.shots.size}. Perhaps all shots are filtered by post-selection method?")
+
         return StateClassifierContainer(
             state_classification=self._process_tensor(self.shots, self.decision_boundaries.get_binary_predictions),
             _expected_parity=self.expected_parity,
