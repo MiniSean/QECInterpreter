@@ -315,7 +315,7 @@ class IStateAcquisitionContainer(ABC):
 
     @property
     @abstractmethod
-    def concatenated_shots(self) -> NDArray[np.complex_]:
+    def concatenated_shots(self) -> NDArray[np.complex128]:
         """:return: Array-like of (complex-valued) concatenated acquisition shots."""
         raise InterfaceMethodException
     # endregion

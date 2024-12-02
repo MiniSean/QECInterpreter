@@ -4,8 +4,9 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from numpy.typing import NDArray
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 import scipy.optimize as optimize
+from qce_circuit.connectivity.intrf_channel_identifier import IQubitID
 from qce_interp.interface_definitions.intrf_error_identifier import IErrorDetectionIdentifier
 from qce_interp.visualization.plotting_functionality import (
     construct_subplot,
@@ -79,6 +80,117 @@ def plot_post_selection_fraction(error_identifier: IErrorDetectionIdentifier, qe
     fraction = np.zeros_like(qec_rounds, dtype=np.float64)
     for i, qec_round in enumerate(qec_rounds):
         post_selection_mask: NDArray[np.bool_] = error_identifier.get_post_selection_mask(cycle_stabilizer_count=qec_round)
+        fraction[i] = 1.0 - np.sum(post_selection_mask) / len(post_selection_mask)
+    # Sub kwargs
+    plot_kwargs = {}
+    for key in ['label', 'color']:
+        if key in kwargs:
+            plot_kwargs[key] = kwargs[key]
+
+    kwargs[SubplotKeywordEnum.LABEL_FORMAT.value] = kwargs.get(
+        SubplotKeywordEnum.LABEL_FORMAT.value,
+        LabelFormat(
+            x_label='QEC round',
+            y_label='Post-selection fraction',
+        ),
+    )
+    fig, ax = construct_subplot(**kwargs)
+    ax.plot(
+        qec_rounds,
+        fraction,
+        '.-',
+        **plot_kwargs,
+    )
+
+    if fit_fraction_rate:  # and not contains_nan_values:
+        args, kwargs = get_fit_plot_arguments(x_array=qec_rounds, y_array=fraction)
+        ax.plot(
+            *args,
+            **kwargs,
+        )
+
+    return fig, ax
+
+
+def plot_post_selection_fraction_composite(error_identifier: IErrorDetectionIdentifier, qec_rounds: List[int], post_selection_qubits: Optional[List[IQubitID]] = None, **kwargs) -> IFigureAxesPair:
+    """
+    Combines multiple preset post-selection fractions with labels.
+    :param error_identifier: Instance that identifiers errors.
+    :param qec_rounds: Array-like of qec cycles that should be included in the post-selection plot.
+    :param post_selection_qubits: (Optional) List of qubits that should be included in the post-selection.
+        By default, the post-selection qubit-ID's are copied from error_identifier instance.
+    :param kwargs: Key-word arguments that are passed to plt.subplots() method.
+    :return: Tuple of Figure and Axes pair.
+    """
+
+    # Data allocation
+    kwargs[SubplotKeywordEnum.LABEL_FORMAT.value] = kwargs.get(
+        SubplotKeywordEnum.LABEL_FORMAT.value,
+        LabelFormat(
+            x_label='QEC round',
+            y_label='Post-selection fraction',
+        ),
+    )
+    fig, ax = construct_subplot(**kwargs)
+    kwargs[SubplotKeywordEnum.HOST_AXES.value] = (fig, ax)
+
+    fig, ax = plot_post_selection_fraction(
+        error_identifier=error_identifier.copy_with_post_selection(
+            use_heralded_post_selection=True,
+            use_projected_leakage_post_selection=False,
+            use_stabilizer_leakage_post_selection=False,
+            post_selection_qubits=post_selection_qubits,
+        ),
+        qec_rounds=qec_rounds,
+        label='Heralded fraction',
+        **kwargs,
+    )
+    plot_post_selection_fraction(
+        error_identifier=error_identifier.copy_with_post_selection(
+            use_heralded_post_selection=False,
+            use_projected_leakage_post_selection=False,
+            use_all_projected_leakage_post_selection=True,
+            use_stabilizer_leakage_post_selection=False,
+            post_selection_qubits=post_selection_qubits,
+        ),
+        qec_rounds=qec_rounds,
+        label='Leakage final-meas. fraction',
+        **kwargs,
+    )
+    plot_post_selection_fraction(
+        error_identifier=error_identifier.copy_with_post_selection(
+            use_heralded_post_selection=False,
+            use_projected_leakage_post_selection=False,
+            use_stabilizer_leakage_post_selection=True,
+            post_selection_qubits=post_selection_qubits,
+        ),
+        qec_rounds=qec_rounds,
+        fit_fraction_rate=False,
+        label='Leakage parity-meas. fraction',
+        **kwargs,
+    )
+
+    ax.grid(which='minor', axis='y', alpha=0.5, linestyle='dashed')
+    ax.legend(loc='upper left', bbox_to_anchor=(1, 1))
+    ax.set_ylim(1.1e-3, 1.1)
+    ax.set_yscale('log')
+
+    return fig, ax
+
+
+def plot_retained_fraction(error_identifier: IErrorDetectionIdentifier, qec_rounds: List[int], fit_fraction_rate: bool = False, **kwargs) -> IFigureAxesPair:
+    """
+    :param error_identifier: Instance that identifiers errors.
+    :param qec_rounds: Array-like of qec cycles that should be included in the post-selection plot.
+    :param fit_fraction_rate: Boolean for fitting linear regression fit to
+    :param kwargs: Key-word arguments that are passed to plt.subplots() method.
+    :return: Tuple of Figure and Axes pair.
+    """
+    # Data allocation
+    qec_rounds: np.ndarray = np.asarray(qec_rounds)
+    fraction = np.zeros_like(qec_rounds, dtype=np.float64)
+    for i, qec_round in enumerate(qec_rounds):
+        post_selection_mask: NDArray[np.bool_] = error_identifier.get_post_selection_mask(cycle_stabilizer_count=qec_round)
         fraction[i] = np.sum(post_selection_mask) / len(post_selection_mask)
     # Sub kwargs
     plot_kwargs = {}
@@ -101,7 +213,6 @@ def plot_post_selection_fraction(error_identifier: IErrorDetectionIdentifier, qe
         **plot_kwargs,
     )
 
-    contains_nan_values: bool = np.isnan(fraction).any()
     if fit_fraction_rate:  # and not contains_nan_values:
         args, kwargs = get_fit_plot_arguments(x_array=qec_rounds, y_array=fraction)
         ax.plot(
@@ -112,11 +223,13 @@ def plot_post_selection_fraction(error_identifier: IErrorDetectionIdentifier, qe
     return fig, ax
 
 
-def plot_post_selection_fraction_composite(error_identifier: IErrorDetectionIdentifier, qec_rounds: List[int], **kwargs) -> IFigureAxesPair:
+def plot_retained_fraction_composite(error_identifier: IErrorDetectionIdentifier, qec_rounds: List[int], post_selection_qubits: Optional[List[IQubitID]] = None, **kwargs) -> IFigureAxesPair:
     """
     Combines multiple preset post-selection fractions with labels.
     :param error_identifier: Instance that identifiers errors.
     :param qec_rounds: Array-like of qec cycles that should be included in the post-selection plot.
+    :param post_selection_qubits: (Optional) List of qubits that should be included in the post-selection.
+        By default, the post-selection qubit-ID's are copied from error_identifier instance.
     :param kwargs: Key-word arguments that are passed to plt.subplots() method.
     :return: Tuple of Figure and Axes pair.
     """
@@ -132,35 +245,39 @@ def plot_post_selection_fraction_composite(error_identifier: IErrorDetectionIden
     fig, ax = construct_subplot(**kwargs)
     kwargs[SubplotKeywordEnum.HOST_AXES.value] = (fig, ax)
 
-    fig, ax = plot_post_selection_fraction(
+    fig, ax = plot_retained_fraction(
         error_identifier=error_identifier.copy_with_post_selection(
             use_heralded_post_selection=True,
             use_projected_leakage_post_selection=False,
             use_stabilizer_leakage_post_selection=False,
+            post_selection_qubits=post_selection_qubits,
         ),
         qec_rounds=qec_rounds,
         label='Heralded fraction',
         **kwargs,
     )
-    plot_post_selection_fraction(
+    plot_retained_fraction(
         error_identifier=error_identifier.copy_with_post_selection(
             use_heralded_post_selection=False,
-            use_projected_leakage_post_selection=True,
+            use_projected_leakage_post_selection=False,
+            use_all_projected_leakage_post_selection=True,
             use_stabilizer_leakage_post_selection=False,
+            post_selection_qubits=post_selection_qubits,
         ),
         qec_rounds=qec_rounds,
-        label='Leakage (Data) fraction',
+        label='Leakage final-meas. fraction',
         **kwargs,
     )
-    plot_post_selection_fraction(
+    plot_retained_fraction(
         error_identifier=error_identifier.copy_with_post_selection(
             use_heralded_post_selection=False,
             use_projected_leakage_post_selection=False,
             use_stabilizer_leakage_post_selection=True,
+            post_selection_qubits=post_selection_qubits,
         ),
         qec_rounds=qec_rounds,
-        fit_fraction_rate=True,
-        label='Leakage (Ancilla) fraction',
+        fit_fraction_rate=False,
+        label='Leakage parity-meas. fraction',
         **kwargs,
     )
 
@@ -187,4 +304,12 @@ def get_minimum_plotted_value(ax: plt.Axes) -> float:
     for line in ax.get_lines():
         y_data = line.get_ydata()
         result = min(result, np.min(y_data))
+    return result
+
+
+def get_maximum_plotted_value(ax: plt.Axes) -> float:
+    result = float('inf')
+    for line in ax.get_lines():
+        y_data = line.get_ydata()
+        result = min(result, np.max(y_data))
     return result

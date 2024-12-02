@@ -364,20 +364,10 @@ class MWPMDecoderFast(IDecoder):
         self.qec_rounds = qec_rounds
         self._contains_qubit_refocusing: bool = contains_qubit_refocusing
 
-        self.extract_data()
-        if optimize:
-            self.optimize_weights(max_shots=max_optimization_shots)
-        else:
-            # uniform weights by default
-            self.space_like_weights = 1
-            self.time_like_weights = 1
-
-    # endregion
-
-    def extract_data(self):
         # binary initial state
         self.initial_state = np.sum(self._initial_state_container.as_array) % 2
 
+        # Construct decoder weight matrix
         self.all_defects = []
         self.all_data_qubit_outcomes = []
         for round in tqdm(self.qec_rounds, desc='Processing defects'):
@@ -392,14 +382,21 @@ class MWPMDecoderFast(IDecoder):
             self.all_defects.append(defects)
             self.all_data_qubit_outcomes.append(data_qubit_outcomes)
 
-        if len(self.all_data_qubit_outcomes) != (self.qec_rounds[-1] + 1):
-            assert False, 'Only support step size = 1 starting at 0 round!'
+        assert not (len(self.all_data_qubit_outcomes) != (self.qec_rounds[-1] + 1)), "Only support step size = 1 starting at 0 round!"
 
         self.distance = len(self.all_data_qubit_outcomes[0][0])
         # args for decoder
         self.H = csc_matrix(create_diagonal_matrix_corrected(self.distance).tolist())
         self.observables = csc_matrix(create_standard_diagonal_matrix(self.distance).tolist())
 
+        # uniform weights by default
+        self.space_like_weights = 1
+        self.time_like_weights = 1
+        if optimize:
+            self.optimize_weights(max_shots=max_optimization_shots)
+    # endregion
+
+    # region Interface Methods
     def get_fidelity(self, cycle_stabilizer_count: int, target_state: np.ndarray = None, qec_round_idx: int = None, max_shots: int = None) -> float:
         """
         Output shape: (1)
@@ -415,9 +412,13 @@ class MWPMDecoderFast(IDecoder):
         if (max_shots is not None) and (num_shots > max_shots):
             num_shots = max_shots
 
-        matching = Matching(self.H, weights=self.space_like_weights,
-                            repetitions=cycle_stabilizer_count + 1, timelike_weights=self.time_like_weights,
-                            faults_matrix=self.observables)
+        matching = Matching(
+            self.H,
+            weights=self.space_like_weights,
+            repetitions=cycle_stabilizer_count + 1,
+            timelike_weights=self.time_like_weights,
+            faults_matrix=self.observables,
+        )
 
         corrections = matching.decode_batch(self.all_defects[qec_round_idx][:num_shots])
         corrected_outcomes = (corrections + self.all_data_qubit_outcomes[qec_round_idx][:num_shots]) % 2
@@ -430,24 +431,27 @@ class MWPMDecoderFast(IDecoder):
         error_rate = error_rate if self.initial_state == 0 else 1 - error_rate
 
         return 1 - error_rate
+    # endregion
 
+    # region Class Methods
     def get_error_rate_for_optimizer(self, concatenated_weights: np.ndarray, qec_round: int, max_shots: int = 1000) -> float:
-        '''
+        """
         Set weights and get the error rate
         :param concatenated_weights: 1d array: [space_like_weights, time_like_weights]
         :param qec_round: qec round
+        :param max_shots:
         :return:
-        '''
+        """
         self.space_like_weights = concatenated_weights[:self.distance]
         self.time_like_weights = concatenated_weights[self.distance:]
-        error_rate = 1 - self.get_fidelity(qec_round, max_shots=max_shots)
+        error_rate = 1.0 - self.get_fidelity(qec_round, max_shots=max_shots)
         return error_rate
 
     def optimize_weights(self, max_shots: int = 1000):
         '''
         Optimize and set the weights
         '''
-        self._optimized_round = 10
+        _optimized_round = 10
         initial_weights = np.ones(
             self.distance * 2 - 1) * 0.02  # uniform weights for d data qubits and d-1 ancila qubits
         sigma0 = 10 * 0.25  # determines the optimization step size. cma suggests 15*0.25, here use smaller step size
@@ -456,13 +460,14 @@ class MWPMDecoderFast(IDecoder):
             initial_weights,
             sigma0,
             options={'bounds': [0, 15]},
-            args=(self._optimized_round, max_shots),
+            args=(_optimized_round, max_shots),
             eval_initial_x=True,
         )
 
         concatenated_weights = result[0]
         self.space_like_weights = concatenated_weights[:self.distance]
         self.time_like_weights = concatenated_weights[self.distance:]
+    # endregion
 
 
 # helper functions
