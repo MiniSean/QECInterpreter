@@ -934,7 +934,7 @@ class ErrorDetectionIdentifier(IErrorDetectionIdentifier):
             subarray = array[:, indices]
 
             # Calculate the parity: +1 if even number of 0's, -1 if odd number of 0's
-            parity = np.sum(subarray == 0, axis=1) % 2  # This gives 0 for even, 1 for odd
+            parity = np.sum(subarray, axis=1) % 2  # This gives 0 for even, 1 for odd
             result[:, i] = np.where(parity == 0, 1, -1)  # Map 0 to +1 and 1 to -1
 
         return result

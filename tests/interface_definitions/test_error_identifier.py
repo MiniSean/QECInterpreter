@@ -807,6 +807,43 @@ class GeneralComputedParityTestCase(unittest.TestCase):
             defect_array,
             np.asarray([[[1], [1], [1], [1], [1], [1]]])
         )
+
+    def test_odd_data_computed_parity(self):
+        """Tests computed parity when there are an odd number of data-qubits per ancilla qubit."""
+        computed_parity: np.ndarray = ErrorDetectionIdentifier.calculate_computational_parity(
+            array=np.asarray([
+                [0, 0, 0],
+                [0, 0, 1],
+                [0, 1, 1],
+                [1, 1, 1],
+            ]),
+            parity_index_lookup={
+                QubitIDObj('X1'): np.asarray([0]),
+                QubitIDObj('X2'): np.asarray([0, 1]),
+                QubitIDObj('X3'): np.asarray([1, 2]),
+                QubitIDObj('X4'): np.asarray([2]),
+            },
+            involved_ancilla_qubit_ids=[
+                QubitIDObj('X1'),
+                QubitIDObj('X2'),
+                QubitIDObj('X3'),
+                QubitIDObj('X4'),
+            ]
+        )
+
+        expected_computed_parity = np.asarray([
+            [+1, +1, +1, +1],
+            [+1, +1, -1, -1],
+            [+1, -1, +1, -1],
+            [-1, +1, +1, -1],
+        ])
+
+        assert_array_equal(
+            computed_parity,
+            expected_computed_parity,
+            err_msg=f"Expects single-qubit parity to be equal to the state-parity. 0 -> +1, 1 -> -1."
+        )
+
     # endregion
 
     # region Teardown
