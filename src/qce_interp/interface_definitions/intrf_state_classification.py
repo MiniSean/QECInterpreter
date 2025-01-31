@@ -454,30 +454,30 @@ class StateAcquisitionContainer(IStateAcquisitionContainer):
 
 
 @dataclass(frozen=True)
-class AssignmentFidelityMatrix:
-    """Data class, containing assignment fidelity matrix and array-like of state-key."""
+class AssignmentProbabilityMatrix:
+    """Data class, containing assignment probability matrix and array-like of state-key."""
     state_keys: List[StateKey]
     matrix: NDArray[np.float64]
 
     # region Class Methods
     @classmethod
-    def from_acquisition_container(cls, acquisition_container: IStateAcquisitionContainer) -> 'AssignmentFidelityMatrix':
+    def from_acquisition_container(cls, acquisition_container: IStateAcquisitionContainer) -> 'AssignmentProbabilityMatrix':
         """:return: Class method constructor based on decision boundaries."""
         # Data allocation
         decision_boundaries: DecisionBoundaries = acquisition_container.classification_boundaries
         states: List[StateKey] = list(acquisition_container.contained_states)
-        fidelity_matrix: np.ndarray = np.zeros(shape=(len(states), len(states)))
+        probability_matrix: np.ndarray = np.zeros(shape=(len(states), len(states)))
         for i, _state_key in enumerate(states):
             state_acquisition = acquisition_container.get_state_acquisition(state=_state_key)
             for j, state in enumerate(states):
-                fidelity_matrix[i][j] = decision_boundaries.get_fidelity(
+                probability_matrix[i][j] = decision_boundaries.get_fidelity(
                     shots=state_acquisition.shots,
                     assigned_state=state,
                 )
 
-        return AssignmentFidelityMatrix(
+        return AssignmentProbabilityMatrix(
             state_keys=states,
-            matrix=fidelity_matrix,
+            matrix=probability_matrix,
         )
     # endregion
 
