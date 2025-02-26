@@ -382,8 +382,6 @@ class MWPMDecoderFast(IDecoder):
             self.all_defects.append(defects)
             self.all_data_qubit_outcomes.append(data_qubit_outcomes)
 
-        assert not (len(self.all_data_qubit_outcomes) != (self.qec_rounds[-1] + 1)), "Only support step size = 1 starting at 0 round!"
-
         self.distance = len(self.all_data_qubit_outcomes[0][0])
         # args for decoder
         self.H = csc_matrix(create_diagonal_matrix_corrected(self.distance).tolist())
@@ -407,7 +405,7 @@ class MWPMDecoderFast(IDecoder):
         """
         # by default step size = 1, starting from 0.
         if qec_round_idx is None:
-            qec_round_idx = cycle_stabilizer_count
+            qec_round_idx = list(self.qec_rounds).index(cycle_stabilizer_count)
         num_shots = len(self.all_defects[qec_round_idx])
         if (max_shots is not None) and (num_shots > max_shots):
             num_shots = max_shots
