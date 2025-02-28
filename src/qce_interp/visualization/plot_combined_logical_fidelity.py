@@ -37,8 +37,13 @@ def plot_combined_overview(decoder: IDecoder, error_identifier: IErrorDetectionI
     # Data allocation
     decoder_post_selected = decoder_constructor(error_identifier.copy_with_post_selection(
         use_heralded_post_selection=True,
-        use_projected_leakage_post_selection=False,
+        use_projected_leakage_post_selection=True,
         use_stabilizer_leakage_post_selection=True,
+    ))
+    decoder_post_selected_final = decoder_constructor(error_identifier.copy_with_post_selection(
+        use_heralded_post_selection=True,
+        use_projected_leakage_post_selection=True,
+        use_stabilizer_leakage_post_selection=False,
     ))
 
     # Define grid details
@@ -96,11 +101,20 @@ def plot_combined_overview(decoder: IDecoder, error_identifier: IErrorDetectionI
         **kwargs_logical,
     )
     plot_fidelity(
+        decoder=decoder_post_selected_final,
+        included_rounds=qec_rounds,
+        target_state=target_state,
+        color='cyan',
+        label='PS final-meas leakage',
+        fit_error_rate=True,
+        **kwargs_logical
+    )
+    plot_fidelity(
         decoder=decoder_post_selected,
         included_rounds=qec_rounds,
         target_state=target_state,
         color='magenta',
-        label='PS Heralded + Ancilla Leakage',
+        label='PS final- + parity-meas leakage',
         fit_error_rate=True,
         **kwargs_logical
     )
