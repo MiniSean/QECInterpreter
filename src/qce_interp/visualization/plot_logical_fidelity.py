@@ -1,14 +1,21 @@
 # -------------------------------------------
 # Module for visualizing logical fidelity and error rate.
 # -------------------------------------------
+from dataclasses import dataclass, field
 import itertools
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Type, Dict
 from tqdm import tqdm
 import numpy as np
 from scipy.optimize import curve_fit
 from qce_circuit.language import InitialStateContainer
+from qce_interp.definitions import Singleton
 from qce_interp.utilities.custom_exceptions import ZeroClassifierShotsException
 from qce_interp.interface_definitions.intrf_syndrome_decoder import IDecoder
+from qce_interp.decoder_examples.mwpm_decoders import (
+    MWPMDecoder,
+    MWPMDecoderFast,
+)
+from qce_interp.decoder_examples.majority_voting import MajorityVotingDecoder
 from qce_interp.visualization.plotting_functionality import (
     construct_subplot,
     IFigureAxesPair,
@@ -28,6 +35,36 @@ orange_red_purple_shades = [
     '#8a2be2',  # blue violet (to transition towards more purplish shades)
     '#9370db',  # medium purple
 ]
+
+
+@dataclass(frozen=True)
+class DecoderToLabel:
+    """
+    Data class, containing decoder class or instance to label.
+    """
+    default_label: str = "Unlabeled"
+    decoder_type_to_label: Dict[Type[IDecoder], str] = field(default_factory=dict)
+    decoder_instance_to_label: Dict[IDecoder, str] = field(default_factory=dict)
+
+    # region Class Methods
+    def __post_init__(self):
+        default_decoder_type_to_label: Dict[Type[IDecoder], str] = {
+            MWPMDecoder: "MWPM",
+            MWPMDecoderFast: "MWPM (optimized)",
+            MajorityVotingDecoder: "MV",
+        }
+        default_decoder_type_to_label.update(self.decoder_type_to_label)
+        object.__setattr__(self, 'decoder_type_to_label', default_decoder_type_to_label)
+
+    def to_label(self, decoder: IDecoder) -> str:
+        """:return: label based on decoder instance, else based on decoder type, else default label."""
+        if decoder in self.decoder_instance_to_label:
+            return self.decoder_instance_to_label[decoder]
+        decoder_type = type(decoder)
+        if decoder_type in self.decoder_type_to_label:
+            return self.decoder_type_to_label[decoder_type]
+        return f"{decoder.__class__.__name__}"
+    # endregion
 
 
 def fit_function(x: np.ndarray, error: float, x_0: float) -> np.ndarray:
@@ -111,7 +148,7 @@ def plot_fidelity(decoder: IDecoder, included_rounds: List[int], target_state: I
     """
     # Data allocation
     x_array: np.ndarray = np.asarray(included_rounds)
-    y_array: np.ndarray = np.full_like(x_array, np.nan, dtype=np.float64)
+    y_array: np.ndarray = np.full_like(x_array, np.nan, dtype=np.float32)
     for i, x in tqdm(enumerate(x_array), desc=f"Processing {decoder.__class__.__name__} Decoder", total=len(x_array)):
         try:
             value: float = decoder.get_fidelity(x, target_state=target_state.as_array)
@@ -141,7 +178,7 @@ def plot_fidelity(decoder: IDecoder, included_rounds: List[int], target_state: I
     if fit_error_rate and not contains_nan_values:
         code_distance: int = len(target_state.as_array)
         exclude_first_n: int = code_distance
-        if code_distance < 7:
+        if code_distance < 5:
             exclude_first_n = 2 * code_distance
 
         try:
@@ -159,12 +196,13 @@ def plot_fidelity(decoder: IDecoder, included_rounds: List[int], target_state: I
     return fig, ax
 
 
-def plot_compare_fidelity(decoders: List[IDecoder], included_rounds: List[int], target_state: InitialStateContainer, **kwargs) -> IFigureAxesPair:
+def plot_compare_fidelity(decoders: List[IDecoder], included_rounds: List[int], target_state: InitialStateContainer, decoder_labels: DecoderToLabel = DecoderToLabel(), **kwargs) -> IFigureAxesPair:
     """
     Plots multiple decoders fidelity in one subplot.
     :param decoders: Decoder used to evaluate fidelity at each QEC-round.
     :param included_rounds: Array-like of included QEC-rounds. Each round will be evaluated.
     :param target_state: InitialStateContainer instance representing target state.
+    :param decoder_labels: (Optional) Translation from decoder to label.
     :param kwargs: Key-word arguments passed to subplot constructor.
     :return: Tuple of Figure and Axes pair.
     """
@@ -178,7 +216,7 @@ def plot_compare_fidelity(decoders: List[IDecoder], included_rounds: List[int], 
             decoder=decoder,
             included_rounds=included_rounds,
             target_state=target_state,
-            label=f"{decoder.__class__.__name__}",
+            label=decoder_labels.to_label(decoder=decoder),
             fit_error_rate=True,
             **kwargs,
         )
