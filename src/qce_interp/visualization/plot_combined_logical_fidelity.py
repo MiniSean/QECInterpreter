@@ -114,7 +114,7 @@ def plot_combined_overview(decoder: IDecoder, error_identifier: IErrorDetectionI
         included_rounds=qec_rounds,
         target_state=target_state,
         color='magenta',
-        label='PS final- + parity-meas leakage',
+        label='PS final/parity-meas leakage',
         fit_error_rate=True,
         **kwargs_logical
     )

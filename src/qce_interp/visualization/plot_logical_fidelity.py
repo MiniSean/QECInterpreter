@@ -149,12 +149,16 @@ def plot_fidelity(decoder: IDecoder, included_rounds: List[int], target_state: I
     # Data allocation
     x_array: np.ndarray = np.asarray(included_rounds)
     y_array: np.ndarray = np.full_like(x_array, np.nan, dtype=np.float32)
+    y_err_array: np.ndarray = np.full_like(x_array, np.nan, dtype=np.float32)
     for i, x in tqdm(enumerate(x_array), desc=f"Processing {decoder.__class__.__name__} Decoder", total=len(x_array)):
         try:
             value: float = decoder.get_fidelity(x, target_state=target_state.as_array)
+            value_err: float = decoder.get_fidelity_uncertainty(x, target_state=target_state.as_array)
         except ZeroClassifierShotsException:
             value = np.nan
+            value_err = np.nan
         y_array[i] = value
+        y_err_array[i] = value_err
 
     color: str = kwargs.pop('color', orange_red_purple_shades[0])
     label_format: LabelFormat = kwargs.get(SubplotKeywordEnum.LABEL_FORMAT.value, LabelFormat(
@@ -166,13 +170,15 @@ def plot_fidelity(decoder: IDecoder, included_rounds: List[int], target_state: I
     kwargs[SubplotKeywordEnum.LABEL_FORMAT.value] = label_format
     fig, ax = construct_subplot(**kwargs)
 
-    ax.plot(
+    ax.errorbar(
         x_array,
         y_array,
+        yerr=y_err_array,
         linestyle='-',
         marker='.',
         color=color,
         label=label,
+        capsize=3,
     )
     contains_nan_values: bool = np.isnan(y_array).any()
     if fit_error_rate and not contains_nan_values:
@@ -180,11 +186,11 @@ def plot_fidelity(decoder: IDecoder, included_rounds: List[int], target_state: I
         exclude_first_n: int = code_distance
         if code_distance < 5:
             exclude_first_n = 2 * code_distance
-
         try:
             args, kwargs = get_fit_plot_arguments(x_array=x_array, y_array=y_array, exclude_first_n=exclude_first_n)
-            ax.plot(
+            ax.errorbar(
                 *args,
+                yerr=0.0,
                 **kwargs,
             )
         except RuntimeError:

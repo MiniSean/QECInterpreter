@@ -286,6 +286,13 @@ class LabeledSyndromeDecoder(ILabeledSyndromeDecoder, metaclass=ABCMeta):
             cycle_stabilizer_count=cycle_stabilizer_count,
             target_state=target_state,
         )
+
+    def get_fidelity_uncertainty(self, cycle_stabilizer_count: int, target_state: np.ndarray) -> float:
+        """:return: Uncertainty in Logical fidelity based on target state and stabilizer round-count."""
+        return self._syndrome_decoder.get_fidelity_uncertainty(
+            cycle_stabilizer_count=cycle_stabilizer_count,
+            target_state=target_state,
+        )
     # endregion
 
 
