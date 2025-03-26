@@ -1,8 +1,11 @@
 import unittest
+import numpy as np
+from numpy.testing import assert_array_equal
 from qce_circuit.language.intrf_declarative_circuit import InitialStateContainer, InitialStateEnum
 from qce_circuit.connectivity.intrf_channel_identifier import QubitIDObj
 from qce_interp.interface_definitions.intrf_state_classification import ParityType
 from qce_interp.utilities.expected_parities import initial_state_to_expected_parity
+from qce_interp.interface_definitions.intrf_state_classification import StateClassifierContainer
 from qce_circuit.library.repetition_code.repetition_code_connectivity import Repetition9Round6Code as Repetition17Layer
 from qce_circuit.connectivity.connectivity_surface_code import Surface17Layer
 
@@ -85,6 +88,83 @@ class InitialStateToExpectedParityTestCase(unittest.TestCase):
         self.assertEqual(
             expected_parity[QubitIDObj('X1')],
             ParityType.EVEN,
+        )
+    # endregion
+
+    # region Teardown
+    @classmethod
+    def tearDownClass(cls) -> None:
+        """Closes any left over processes after testing"""
+        pass
+    # endregion
+
+
+class ActiveParityResetTestCase(unittest.TestCase):
+
+    # region Setup
+    @classmethod
+    def setUpClass(cls) -> None:
+        """Set up for all test cases"""
+        pass
+
+    def setUp(self) -> None:
+        """Set up for every test case"""
+        pass
+    # endregion
+
+    # region Test Cases
+    def test_classification_without_parity_reset(self):
+        """Tests initial state to weight-2 parities."""
+
+        state_classification: np.ndarray = np.asarray([0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0])
+        state_classifier = StateClassifierContainer(
+            state_classification=state_classification,
+            _expected_parity=ParityType.EVEN,
+            _parity_reset=False,
+        )
+
+        assert_array_equal(
+            state_classifier.get_binary_classification(),
+            state_classification,
+        )
+        assert_array_equal(
+            state_classifier.get_eigenvalue_classification(),
+            np.array([1,  1,  1,  1, -1,  1, -1,  1, -1,  1,  1,  1,  1]),
+        )
+        assert_array_equal(
+            state_classifier.get_parity_classification(),
+            np.array([1,  1,  1,  1, -1, -1, -1, -1, -1, -1,  1,  1,  1]),
+        )
+        assert_array_equal(
+            state_classifier.get_defect_classification(),
+            np.array([1,  1,  1,  1, -1,  1,  1,  1,  1,  1, -1,  1,  1]),
+        )
+
+    def test_classification_with_parity_reset(self):
+        """Tests initial state to weight-2 parities."""
+
+        state_classification: np.ndarray = np.asarray([0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0])
+        state_classifier = StateClassifierContainer(
+            state_classification=state_classification,
+            _expected_parity=ParityType.EVEN,
+            _parity_reset=True,
+        )
+
+        assert_array_equal(
+            state_classifier.get_binary_classification(),
+            state_classification,
+        )
+        assert_array_equal(
+            state_classifier.get_eigenvalue_classification(),
+            np.array([ 1,  1,  1,  1, -1, -1, -1, -1, -1,  1,  1,  1,  1]),
+        )
+        assert_array_equal(
+            state_classifier.get_parity_classification(),
+            np.array([ 1,  1,  1,  1, -1, -1, -1, -1, -1,  1,  1,  1,  1]),
+        )
+        assert_array_equal(
+            state_classifier.get_defect_classification(),
+            np.array([ 1,  1,  1,  1, -1,  1,  1,  1,  1, -1,  1,  1,  1]),
         )
     # endregion
 
