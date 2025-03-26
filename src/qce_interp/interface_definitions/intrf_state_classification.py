@@ -499,7 +499,7 @@ class IStateClassifierContainer(ABC):
 
     @property
     @abstractmethod
-    def parity_reset(self) -> bool:
+    def stabilizer_reset(self) -> bool:
         """:return: Boolean whether parity resets each round."""
         raise InterfaceMethodException
     # endregion
@@ -614,7 +614,7 @@ class StateClassifierContainer(IStateClassifierContainer):
     """Data class, containing classified states based on already classified states."""
     state_classification: NDArray[np.int_]
     _expected_parity: ParityType = field(default=ParityType.EVEN)
-    _parity_reset: bool = field(default=False)
+    _stabilizer_reset: bool = field(default=False)
 
     # region Interface Properties
     @property
@@ -623,9 +623,9 @@ class StateClassifierContainer(IStateClassifierContainer):
         return self._expected_parity
 
     @property
-    def parity_reset(self) -> bool:
+    def stabilizer_reset(self) -> bool:
         """:return: Boolean whether parity resets each round."""
-        return self._parity_reset
+        return self._stabilizer_reset
     # endregion
 
     # region Class Methods
@@ -643,7 +643,7 @@ class StateClassifierContainer(IStateClassifierContainer):
 
     def get_parity_classification(self) -> NDArray[np.int_]:
         """:return: Parity classification based on eigenvalue classification."""
-        if self._parity_reset:
+        if self._stabilizer_reset:
             return self.get_eigenvalue_classification()
 
         return IStateClassifierContainer.calculate_parity(
@@ -670,7 +670,7 @@ class StateClassifierContainer(IStateClassifierContainer):
         return StateClassifierContainer(
             state_classification=np.array([container.state_classification[index_slice] for index_slice in index_slices]),
             _expected_parity=container.expected_parity,
-            _parity_reset=container.parity_reset,
+            _stabilizer_reset=container.stabilizer_reset,
         )
     # endregion
 
@@ -681,7 +681,7 @@ class ShotsClassifierContainer(IStateClassifierContainer):
     shots: NDArray[np.complex64]
     decision_boundaries: DecisionBoundaries
     _expected_parity: ParityType = field(default=ParityType.EVEN)
-    _parity_reset: bool = field(default=False)
+    _stabilizer_reset: bool = field(default=False)
 
     # region Interface Properties
     @property
@@ -690,9 +690,9 @@ class ShotsClassifierContainer(IStateClassifierContainer):
         return self._expected_parity
 
     @property
-    def parity_reset(self) -> bool:
+    def stabilizer_reset(self) -> bool:
         """:return: Boolean whether parity resets each round."""
-        return self._parity_reset
+        return self._stabilizer_reset
     # endregion
 
     # region Class Properties
@@ -706,7 +706,7 @@ class ShotsClassifierContainer(IStateClassifierContainer):
         return StateClassifierContainer(
             state_classification=self._process_tensor(self.shots, self.decision_boundaries.get_binary_predictions),
             _expected_parity=self.expected_parity,
-            _parity_reset=self.parity_reset,
+            _stabilizer_reset=self.stabilizer_reset,
         )
 
     @property
@@ -715,7 +715,7 @@ class ShotsClassifierContainer(IStateClassifierContainer):
         return StateClassifierContainer(
             state_classification=self._process_tensor(self.shots, self.decision_boundaries.get_predictions),
             _expected_parity=self.expected_parity,
-            _parity_reset=self.parity_reset,
+            _stabilizer_reset=self.stabilizer_reset,
         )
     # endregion
 
@@ -751,7 +751,7 @@ class ShotsClassifierContainer(IStateClassifierContainer):
             shots=np.array([container.shots[index_slice] for index_slice in index_slices]),
             decision_boundaries=container.decision_boundaries,
             _expected_parity=container.expected_parity,
-            _parity_reset=container.parity_reset,
+            _stabilizer_reset=container.stabilizer_reset,
         )
     # endregion
 

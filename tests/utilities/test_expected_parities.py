@@ -113,14 +113,14 @@ class ActiveParityResetTestCase(unittest.TestCase):
     # endregion
 
     # region Test Cases
-    def test_classification_without_parity_reset(self):
+    def test_classification_without_stabilizer_reset(self):
         """Tests initial state to weight-2 parities."""
 
         state_classification: np.ndarray = np.asarray([0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0])
         state_classifier = StateClassifierContainer(
             state_classification=state_classification,
             _expected_parity=ParityType.EVEN,
-            _parity_reset=False,
+            _stabilizer_reset=False,
         )
 
         assert_array_equal(
@@ -140,14 +140,14 @@ class ActiveParityResetTestCase(unittest.TestCase):
             np.array([1,  1,  1,  1, -1,  1,  1,  1,  1,  1, -1,  1,  1]),
         )
 
-    def test_classification_with_parity_reset(self):
+    def test_classification_with_stabilizer_reset(self):
         """Tests initial state to weight-2 parities."""
 
         state_classification: np.ndarray = np.asarray([0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0])
         state_classifier = StateClassifierContainer(
             state_classification=state_classification,
             _expected_parity=ParityType.EVEN,
-            _parity_reset=True,
+            _stabilizer_reset=True,
         )
 
         assert_array_equal(
