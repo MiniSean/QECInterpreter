@@ -9,7 +9,7 @@ import numpy as np
 from warnings import warn
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from numpy.typing import NDArray
-from typing import List, Dict, Optional, Callable, TypeVar
+from typing import List, Dict, Optional, Callable, TypeVar, Sequence
 from qce_circuit.utilities.array_manipulation import unique_in_order
 from qce_interp.utilities.custom_exceptions import (
     InterfaceMethodException,
@@ -479,6 +479,235 @@ class AssignmentProbabilityMatrix:
             state_keys=states,
             matrix=probability_matrix,
         )
+
+    def correct_readout_error(
+        self,
+        measured_probabilities: NDArray[np.float32],
+        input_states: List[StateKey],
+        clip_values: bool = True
+    ) -> Optional[NDArray[np.float32]]:
+        """
+        Corrects a vector of measured probabilities using THIS instance as the calibration matrix.
+
+        Assumes THIS instance's matrix represents P(measure i | true k) [COLUMNS sum to 1].
+        Takes a measured distribution P(measure j) and estimates P(true k).
+
+        :param measured_probabilities: 1D array of measured probabilities P(measure j).
+                                       Order defined by input_states. Should sum to 1.
+        :param input_states: List of StateKeys corresponding to measured_probabilities,
+                             defining the subspace for correction relative to THIS matrix.
+        :param clip_values: If True, clips results to [0, 1] and renormalizes.
+        :return: Numpy array of corrected probabilities P(true k) in the same order as input_states,
+                 cast to float32, or None if correction fails (e.g., singular matrix).
+                 Returns an empty float32 array if input sequences are empty.
+        :raises ValueError: If validation fails (length mismatch, unknown states in input_states).
+        """
+        # --- Input Validation ---
+        if len(measured_probabilities) != len(input_states):
+            raise ValueError(f"Length mismatch: len(measured_probabilities)={len(measured_probabilities)} != len(input_states)={len(input_states)}.")
+        if not input_states:
+            return np.array([], dtype=np.float32)  # Handle empty input
+
+        # Check sum robustly before proceeding
+        prob_sum = np.sum(measured_probabilities)
+        if not np.isclose(prob_sum, 1.0, atol=1e-5):
+            # Use warning instead of error? Depends on expected usage.
+            warn(f"Input probabilities sum to {prob_sum:.6f}, not 1.0. Correction proceeds, but result validity depends on input.")
+            # raise ValueError(f"Input probabilities must sum to 1.0, but sum to {prob_sum:.4f}.")
+
+        missing_keys = [ts for ts in input_states if ts not in self.state_keys]
+        if missing_keys:
+            raise ValueError(f"Input states {missing_keys} are not present in the "
+                             f"calibration matrix state keys {self.state_keys}.")
+        if len(set(input_states)) != len(input_states):
+            raise ValueError(f"Duplicate states found in input_states: {input_states}")
+        # --- End Validation ---
+
+        if len(self.state_keys) == 0:
+            warn("Cannot correct, AssignmentProbabilityMatrix (calibration matrix) is empty.")
+            return None
+
+        # Get Correction Submatrix (from self.matrix, assumed P(measure|true))
+        # Use float64 for the submatrix going into inversion
+        sub_matrix_64 = self._get_correction_submatrix(input_states).astype(np.float64)
+
+        # Apply Core Correction Math (using float64 for precision)
+        raw_corrected_probs_64 = AssignmentProbabilityMatrix.apply_inverse_correction(
+            sub_matrix_64,
+            measured_probabilities.astype(np.float64) # Ensure input is float64
+        )
+
+        if raw_corrected_probs_64 is None:
+            return None  # Failure (error already printed by static method)
+
+        # Clip and Re-normalize (Optional) - operates on float64
+        final_probs_64 = raw_corrected_probs_64
+        if clip_values:
+            final_probs_64 = AssignmentProbabilityMatrix.clip_and_normalize(final_probs_64)
+
+        # Return Result Array (cast back to float32)
+        return final_probs_64.astype(np.float32)
+
+    def _get_correction_submatrix(self, target_states: Sequence[StateKey]) -> NDArray[np.float32]:
+        """
+        Extracts the relevant sub-matrix from THIS instance's matrix.
+
+        Assumes self.matrix is P(measure i | true k). Extracts the part relevant
+        to the subspace defined by target_states. The target_states define both
+        the measured states (rows) and the true states (columns) of the submatrix.
+
+        :param target_states: Sequence of StateKeys defining the subspace.
+        :return: The square sub-matrix M_sub[a, b] = P(measure target_state[a] | true target_state[b]).
+        """
+        if not target_states:
+            return np.empty((0, 0), dtype=np.float32)
+        try:
+            # Get indices corresponding to target_states within self.state_keys
+            cal_indices = [self.state_keys.index(ts) for ts in target_states]
+        except ValueError as e:
+            # Should be caught by validation earlier, but handle defensively.
+            raise ValueError(f"State key not found in calibration matrix state keys during submatrix extraction: {e}") from e
+        # Extract rows and columns corresponding to these indices
+        return self.matrix[np.ix_(cal_indices, cal_indices)]
+
+    def apply_readout_correction(
+            self,
+            noisy_assignment: 'AssignmentProbabilityMatrix',
+            clip_values: bool = True
+    ) -> Optional['AssignmentProbabilityMatrix']:
+        """
+        Corrects a noisy assignment matrix using THIS instance as the calibration matrix.
+
+        Corrects the input matrix where noisy_assignment.matrix[i, j] = P(assigned j | prepared i) [ROWS sum to 1].
+        Uses THIS instance where self.matrix[i, k] = P(measure i | true k) [COLUMNS sum to 1] for calibration.
+        The output matrix represents P(true k | prepared i) [ROWS sum to 1].
+
+        :param noisy_assignment: An AssignmentProbabilityMatrix instance containing the noisy
+                                 assignment matrix P(assigned j | prepared i). Its state_keys
+                                 define the prepared/assigned states. ROWS should sum to 1.
+        :param clip_values: Whether to clip and normalize the corrected probabilities row-wise.
+        :return: A new AssignmentProbabilityMatrix instance containing the corrected matrix
+                 P(true k | prepared i), where rows sum to 1, or None if correction fails for any row.
+        :raises ValueError: If dimensions or state keys are inconsistent between the
+                           noisy matrix and the calibration matrix (self).
+        """
+        # --- Input Validation ---
+        noisy_matrix: NDArray[np.float32] = noisy_assignment.matrix
+        matrix_states: List[StateKey] = noisy_assignment.state_keys
+        calibration_matrix: AssignmentProbabilityMatrix = self  # Self is the calibrator
+
+        n_states = len(matrix_states)
+        if noisy_matrix.shape != (n_states, n_states):
+            raise ValueError(f"Shape mismatch: noisy assignment matrix shape {noisy_matrix.shape} "
+                             f"does not match its number of states {n_states}.")
+
+        if n_states == 0:
+            warn("Input noisy_assignment matrix is empty (0 states). Returning empty matrix.")
+            return AssignmentProbabilityMatrix(state_keys=[], matrix=np.empty((0, 0), dtype=np.float32))
+
+        # Verify row sums of the input noisy matrix
+        row_sums = np.sum(noisy_matrix, axis=1)
+        if not np.allclose(row_sums, 1.0, atol=1e-5):
+            warn(f"Rows of input noisy assignment matrix do not all sum to 1.0 (sums: {row_sums}). "
+                          f"Correction assumes rows represent measured probability distributions.")
+
+        # Check if calibration matrix (self) supports the necessary states
+        if not all(state in calibration_matrix.state_keys for state in matrix_states):
+            missing = [s for s in matrix_states if s not in calibration_matrix.state_keys]
+            raise ValueError(f"Calibration matrix (self) is missing states required by the "
+                             f"noisy matrix: {missing}. Cannot correct over subspace {matrix_states}.")
+        # --- End Validation ---
+
+        # Create an empty matrix for the results
+        # Output matrix rows are prepared states, columns are TRUE states
+        corrected_matrix = np.zeros_like(noisy_matrix, dtype=np.float32)
+
+        # Iterate through the ROWS of the noisy matrix
+        for i, prepared_state in enumerate(matrix_states):
+            # Row 'i' represents the measured probabilities P(assigned j | prepared i)
+            measured_probs_for_row_i: NDArray[np.float32] = noisy_matrix[i, :]
+
+            # The measured probabilities correspond to the 'matrix_states' (assigned states)
+            # We use the 'calibration_matrix' (self) to perform the correction
+            # The 'input_states' for correction are the possible measured/assigned states (matrix_states)
+            corrected_probs_for_row_i: Optional[NDArray[np.float32]] = calibration_matrix.correct_readout_error(
+                measured_probabilities=measured_probs_for_row_i,
+                input_states=matrix_states,  # These are the states corresponding to measured_probs_for_row_i
+                clip_values=clip_values
+            )
+
+            # Check if correction failed for this row
+            if corrected_probs_for_row_i is None:
+                # Error message already printed by correct_readout_error or its helpers
+                warn(f"Readout correction failed for row {i} (prepared state {prepared_state}). Returning None.")
+                return None  # Abort correction for the whole matrix
+
+            # Store the corrected probability vector P(true k | prepared i) in row 'i'
+            corrected_matrix[i, :] = corrected_probs_for_row_i
+
+        # Optional: Verify row sums of the *output* matrix
+        final_row_sums = np.sum(corrected_matrix, axis=1)
+        if not np.allclose(final_row_sums, 1.0, atol=1e-5):
+            warn(f"Rows of the *corrected* matrix do not all sum to 1.0 (sums: {final_row_sums}). This can happen if clipping was aggressive or input rows didn't sum to 1.")
+
+        # Return a new AssignmentProbabilityMatrix instance
+        # Note: The state_keys remain the same, representing the prepared states (rows)
+        # and now the TRUE states (columns).
+        return AssignmentProbabilityMatrix(
+            state_keys=matrix_states,
+            matrix=corrected_matrix,
+        )
+    # endregion
+
+    # region Static Class Methods
+    @staticmethod
+    def apply_inverse_correction(sub_matrix: NDArray[np.float64], probability_array: NDArray[np.float64]) -> Optional[NDArray[np.float64]]:
+        """
+        Applies P_true = inv(M_sub) * P_meas using float64 for precision.
+
+        :param sub_matrix: Calibration submatrix P(measure|true), float64.
+        :param probability_array: Measured probability vector P(measure), float64.
+        :return: Raw corrected probability P(true) as float64 array, or None if inversion fails.
+        """
+        if probability_array.size == 0:
+            return np.array([], dtype=np.float64)
+
+        p_meas_sub = probability_array.reshape(-1, 1)
+        try:
+            m_sub_inv = np.linalg.inv(sub_matrix)
+        except np.linalg.LinAlgError:
+            warn(f"Singular matrix encountered during inversion:\n{sub_matrix}")
+            return None
+        p_true_sub = m_sub_inv @ p_meas_sub
+        return p_true_sub.flatten()
+
+    @staticmethod
+    def clip_and_normalize(prob_array: NDArray[np.float64]) -> NDArray[np.float64]:
+        """
+        Clips float64 probabilities to [0, 1] and renormalizes to sum to 1.
+
+        :param prob_array: Float64 probability array P(true).
+        :return: Clipped and normalized float64 probability array.
+        """
+        if prob_array.size == 0:
+            return np.array([], dtype=np.float64)
+
+        # Check for significant negative values before clipping
+        if np.any(prob_array < -1e-7):
+            warn(f"Corrected probabilities contained negative values before clipping: {prob_array}")
+
+        clipped_probs = np.clip(prob_array, 0.0, 1.0)
+        sum_clipped = np.sum(clipped_probs)
+
+        if sum_clipped > 1e-9:
+            normalized_probs = clipped_probs / sum_clipped
+            # Ensure sum is exactly 1? Usually not necessary but can enforce:
+            # normalized_probs /= np.sum(normalized_probs)
+            return normalized_probs
+        else:
+            # If sum is zero after clipping
+            warn("Corrected probabilities clipped/normalized to zero sum.")
+            return clipped_probs  # Return the array of zeros
     # endregion
 
 
