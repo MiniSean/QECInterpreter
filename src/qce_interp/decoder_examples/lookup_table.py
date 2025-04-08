@@ -361,3 +361,7 @@ class Distance5LookupTableDecoder(LookupTableDecoder, ISyndromeDecoder):
         return result
     # endregion
 
+    # region Interface Methods
+    def get_fidelity_uncertainty(self, cycle_stabilizer_count: int, target_state: np.ndarray) -> float:
+        raise NotImplemented
+    # endregion
