@@ -108,7 +108,7 @@ def is_post_selection_valid(labeled_error_identifier: LabeledErrorDetectionIdent
     return valid_post_selection
 
 
-def plot_defect_rate(error_identifier: IErrorDetectionIdentifier, qubit_id: IQubitID, qec_cycles: int, **kwargs) -> IFigureAxesPair:
+def plot_defect_rate(error_identifier: IErrorDetectionIdentifier, qubit_id: IQubitID, qec_cycles: int, inversed_defect_rate: bool = False, **kwargs) -> IFigureAxesPair:
     """
     :param error_identifier: Instance that identifiers errors.
     :param qubit_id: Qubit identifier for which the defects are plotted.
@@ -131,6 +131,8 @@ def plot_defect_rate(error_identifier: IErrorDetectionIdentifier, qubit_id: IQub
     )
     # Calculate the mean across 'measurement_repetition'
     averages = data_array.mean(dim=DataArrayLabels.MEASUREMENT.value)
+    if inversed_defect_rate:
+        averages = 1.0 - averages  # Temporarily inverts defect-rate expression
     label: str = qubit_id.id
     color: str = kwargs.pop('color', blue_shades[0])
 
@@ -172,7 +174,7 @@ def plot_defect_rate(error_identifier: IErrorDetectionIdentifier, qubit_id: IQub
     return fig, ax
 
 
-def plot_all_defect_rate(error_identifier: IErrorDetectionIdentifier, included_rounds: int, **kwargs) -> IFigureAxesPair:
+def plot_all_defect_rate(error_identifier: IErrorDetectionIdentifier, included_rounds: int, inversed_defect_rate: bool = False, **kwargs) -> IFigureAxesPair:
     """
     :param error_identifier: Instance that identifiers errors.
     :param included_rounds: Integer number of qec cycles that should be included in the defect plot.
@@ -189,6 +191,7 @@ def plot_all_defect_rate(error_identifier: IErrorDetectionIdentifier, included_r
             error_identifier=error_identifier,
             qubit_id=qubit_id,
             qec_cycles=included_rounds,
+            inversed_defect_rate=inversed_defect_rate,
             **kwargs,
         )
     return fig, ax

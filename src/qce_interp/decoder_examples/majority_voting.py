@@ -51,5 +51,16 @@ class MajorityVotingDecoder(IDecoder):
                 counter += 1
         equal_fraction = counter / len(corrected_binary_output)
         return equal_fraction
+
+    def get_fidelity_uncertainty(self, cycle_stabilizer_count: int, target_state: np.ndarray) -> float:
+        """:return: Uncertainty in Logical fidelity based on target state and stabilizer round-count."""
+        logical_fidelity: float = self.get_fidelity(
+            cycle_stabilizer_count=cycle_stabilizer_count,
+            target_state=target_state,
+        )
+        # (N, 1, D)
+        binary_projected_classification: np.ndarray = self._error_identifier.get_binary_projected_classification(cycle_stabilizer_count=cycle_stabilizer_count)
+        number_of_samples: int = binary_projected_classification.shape[0]
+        return float(np.sqrt(logical_fidelity * (1.0 - logical_fidelity) / number_of_samples))
     # endregion
 

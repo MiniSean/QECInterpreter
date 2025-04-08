@@ -77,7 +77,7 @@ def plot_post_selection_fraction(error_identifier: IErrorDetectionIdentifier, qe
     """
     # Data allocation
     qec_rounds: np.ndarray = np.asarray(qec_rounds)
-    fraction = np.zeros_like(qec_rounds, dtype=np.float64)
+    fraction = np.zeros_like(qec_rounds, dtype=np.float32)
     for i, qec_round in enumerate(qec_rounds):
         post_selection_mask: NDArray[np.bool_] = error_identifier.get_post_selection_mask(cycle_stabilizer_count=qec_round)
         fraction[i] = 1.0 - np.sum(post_selection_mask) / len(post_selection_mask)
@@ -142,7 +142,7 @@ def plot_post_selection_fraction_composite(error_identifier: IErrorDetectionIden
             post_selection_qubits=post_selection_qubits,
         ),
         qec_rounds=qec_rounds,
-        label='Heralded fraction',
+        label='Initiation fraction',
         **kwargs,
     )
     plot_post_selection_fraction(
@@ -188,7 +188,7 @@ def plot_retained_fraction(error_identifier: IErrorDetectionIdentifier, qec_roun
     """
     # Data allocation
     qec_rounds: np.ndarray = np.asarray(qec_rounds)
-    fraction = np.zeros_like(qec_rounds, dtype=np.float64)
+    fraction = np.zeros_like(qec_rounds, dtype=np.float32)
     for i, qec_round in enumerate(qec_rounds):
         post_selection_mask: NDArray[np.bool_] = error_identifier.get_post_selection_mask(cycle_stabilizer_count=qec_round)
         fraction[i] = np.sum(post_selection_mask) / len(post_selection_mask)

@@ -31,7 +31,7 @@ def generate_gray_code(n: int) -> NDArray[np.int_]:
     return gray_code_array
 
 
-def calculate_state_fractions(large_array: NDArray[np.int_], gray_code_array: NDArray[np.int_]) -> NDArray[np.float64]:
+def calculate_state_fractions(large_array: NDArray[np.int_], gray_code_array: NDArray[np.int_]) -> NDArray[np.float32]:
     """
     Calculate the fraction of each Gray code state in the large M by N array.
 
@@ -52,7 +52,7 @@ def get_state_fraction_array(
         rounds: List[int],
         gray_code_n: int,
         classification_method: Callable[[Any, int], NDArray[np.int_]]
-) -> NDArray[np.float64]:
+) -> NDArray[np.float32]:
     """
     Calculate the state fraction array for given rounds using a specified classification method.
 

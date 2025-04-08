@@ -32,6 +32,13 @@ class IDecoder(metaclass=ABCMeta):
         raise InterfaceMethodException
     # endregion
 
+    # region Interface Methods
+    @abstractmethod
+    def get_fidelity_uncertainty(self, cycle_stabilizer_count: int, target_state: np.ndarray) -> float:
+        """:return: Uncertainty in Logical fidelity based on target state and stabilizer round-count."""
+        raise InterfaceMethodException
+    # endregion
+
 
 class ISyndromeDecoder(IDecoder, metaclass=ABCMeta):
     """
