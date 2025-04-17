@@ -368,12 +368,15 @@ class MWPMDecoderFast(IDecoder):
             initial_state_container: InitialStateContainer = InitialStateContainer.empty(),
             contains_qubit_refocusing: bool = True,
             optimize: bool = True,
+            optimized_round: int = 10,
             max_optimization_shots: int = 1000,
     ):
         self._error_identifier: IErrorDetectionIdentifier = error_identifier
         self._initial_state_container: InitialStateContainer = initial_state_container
         self.qec_rounds = qec_rounds
         self._contains_qubit_refocusing: bool = contains_qubit_refocusing
+        self._optimized_round = optimized_round
+        self._optimization_idx = list(self.qec_rounds).index(optimized_round)
 
         # binary initial state
         self.initial_state = np.sum(self._initial_state_container.as_array) % 2
@@ -399,14 +402,16 @@ class MWPMDecoderFast(IDecoder):
         self.observables = csc_matrix(create_standard_diagonal_matrix(self.distance).tolist())
 
         # uniform weights by default
-        self.space_like_weights = 1
-        self.time_like_weights = 1
+        self.space_like_weights = np.ones(self.distance)
+        self.time_like_weights = np.ones(self.distance - 1)
+        self.left_diagonal_weights = np.ones(self.distance - 2)
+        self.right_diagonal_weights = np.ones(self.distance - 2)
         if optimize:
-            self.optimize_weights(max_shots=max_optimization_shots)
+            self.optimize_weights(max_shots=max_optimization_shots, round=optimized_round, round_idx=self._optimization_idx)
     # endregion
 
     # region Interface Methods
-    def get_fidelity(self, cycle_stabilizer_count: int, target_state: np.ndarray = None, qec_round_idx: int = None, max_shots: int = None) -> float:
+    def get_fidelity(self, cycle_stabilizer_count: int, qec_round_idx: int = None, max_shots: int = None, target_state = None) -> float:
         """
         Output shape: (1)
         - N is the number of measurement repetitions.
@@ -421,13 +426,49 @@ class MWPMDecoderFast(IDecoder):
         if (max_shots is not None) and (num_shots > max_shots):
             num_shots = max_shots
 
-        matching = Matching(
+        matching_ref = Matching(
             self.H,
             weights=self.space_like_weights,
             repetitions=cycle_stabilizer_count + 1,
             timelike_weights=self.time_like_weights,
             faults_matrix=self.observables,
         )
+        matching = Matching()
+        # copy the graph
+        for i, edge in enumerate(matching_ref.edges()):
+            if i < ((cycle_stabilizer_count + 1) * self.distance):
+                # data qubits (p)
+                data_q_idx = i % self.distance
+                matching.add_edge(edge[0], edge[1], weight=self.space_like_weights[data_q_idx],
+                                  fault_ids=edge[2]['fault_ids'])  # [0] [1] are nodes, [2] is property
+            else:
+                # ancilla qubits (q)
+                ancilla_q_idx = (i - (cycle_stabilizer_count + 1) * self.distance) % (self.distance - 1)
+                matching.add_edge(edge[0], edge[1], weight=self.time_like_weights[ancilla_q_idx],
+                                  fault_ids=edge[2]['fault_ids'])
+        # diagonal edges, order is A1R1, A2R1, A1R2, A2R2, A1R3, A2R3... Here we don't consider the order of CZ gates
+        for ancilla_q_idx in range(self.distance - 1):
+            for round_ in range(cycle_stabilizer_count):  # The last round is assumed perfect
+                node_idx = ancilla_q_idx + round_ * (self.distance - 1)
+                if ancilla_q_idx == 0:  # the first ancilla
+                    # add right edge
+                    matching.add_edge(node_idx, node_idx + self.distance,
+                                      weight=self.right_diagonal_weights[ancilla_q_idx],
+                                      fault_ids=ancilla_q_idx + 1)  # data qb idx = idx+1
+                elif ancilla_q_idx == self.distance - 2:  # the last ancilla
+                    # add left edge
+                    matching.add_edge(node_idx, node_idx + self.distance - 2,
+                                      weight=self.left_diagonal_weights[ancilla_q_idx - 1],
+                                      fault_ids=ancilla_q_idx)  # data qb idx = idx
+                else:
+                    # add left and right edges
+                    matching.add_edge(node_idx, node_idx + self.distance - 2,
+                                      weight=self.left_diagonal_weights[ancilla_q_idx - 1], fault_ids=ancilla_q_idx)
+                    matching.add_edge(node_idx, node_idx + self.distance,
+                                      weight=self.right_diagonal_weights[ancilla_q_idx], fault_ids=ancilla_q_idx + 1)
+
+        matching.set_boundary_nodes(
+            {(self.distance - 1) * (cycle_stabilizer_count + 1)})  # last node as the boundary node
 
         corrections = matching.decode_batch(self.all_defects[qec_round_idx][:num_shots])
         corrected_outcomes = (corrections + self.all_data_qubit_outcomes[qec_round_idx][:num_shots]) % 2
@@ -435,7 +476,8 @@ class MWPMDecoderFast(IDecoder):
         error_rate = num_error / num_shots
         # correct for echo pulses
         if self._contains_qubit_refocusing:
-            error_rate = num_error / num_shots if (cycle_stabilizer_count % 2 == 1 or cycle_stabilizer_count == 0) else 1 - num_error / num_shots
+            error_rate = num_error / num_shots if (
+                        cycle_stabilizer_count % 2 == 1 or cycle_stabilizer_count == 0) else 1 - num_error / num_shots
         # correct for initial states
         error_rate = error_rate if self.initial_state == 0 else 1 - error_rate
 
@@ -454,7 +496,7 @@ class MWPMDecoderFast(IDecoder):
     # endregion
 
     # region Class Methods
-    def get_error_rate_for_optimizer(self, concatenated_weights: np.ndarray, qec_round: int, max_shots: int = 1000) -> float:
+    def get_error_rate_for_optimizer(self, concatenated_weights: np.ndarray, qec_round: int, qec_round_idx: int, max_shots: int = 1000) -> float:
         """
         Set weights and get the error rate
         :param concatenated_weights: 1d array: [space_like_weights, time_like_weights]
@@ -463,30 +505,33 @@ class MWPMDecoderFast(IDecoder):
         :return:
         """
         self.space_like_weights = concatenated_weights[:self.distance]
-        self.time_like_weights = concatenated_weights[self.distance:]
-        error_rate = 1.0 - self.get_fidelity(qec_round, max_shots=max_shots)
+        self.time_like_weights = concatenated_weights[self.distance: 2 * self.distance - 1]
+        self.left_diagonal_weights = concatenated_weights[2 * self.distance - 1: 3 * self.distance - 3]
+        self.right_diagonal_weights = concatenated_weights[3 * self.distance - 3:]
+        error_rate = 1.0 - self.get_fidelity(qec_round, qec_round_idx, max_shots=max_shots)
         return error_rate
 
-    def optimize_weights(self, max_shots: int = 1000):
+    def optimize_weights(self, round: int = 10, round_idx: int = 0, max_shots: int = 1000):
         '''
         Optimize and set the weights
         '''
-        _optimized_round = 10
         initial_weights = np.ones(
-            self.distance * 2 - 1) * 0.02  # uniform weights for d data qubits and d-1 ancila qubits
+            self.distance * 4 - 5) * 0.02  # uniform weights for d data qubits and d-1 ancila qubits
         sigma0 = 10 * 0.25  # determines the optimization step size. cma suggests 15*0.25, here use smaller step size
         result = cma.fmin(
             self.get_error_rate_for_optimizer,
             initial_weights,
             sigma0,
             options={'bounds': [0, 15]},
-            args=(_optimized_round, max_shots),
+            args=(round, round_idx, max_shots),
             eval_initial_x=True,
         )
 
         concatenated_weights = result[0]
         self.space_like_weights = concatenated_weights[:self.distance]
-        self.time_like_weights = concatenated_weights[self.distance:]
+        self.time_like_weights = concatenated_weights[self.distance: 2 * self.distance - 1]
+        self.left_diagonal_weights = concatenated_weights[2 * self.distance - 1: 3 * self.distance - 3]
+        self.right_diagonal_weights = concatenated_weights[3 * self.distance - 3:]
     # endregion
 
 
