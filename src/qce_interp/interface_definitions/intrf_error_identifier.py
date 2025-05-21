@@ -1102,6 +1102,18 @@ class LabeledErrorDetectionIdentifier(ILabeledErrorDetectionIdentifier):
             cycle_stabilizer_count=cycle_stabilizer_count,
         )
 
+    def get_ternary_stabilizer_classification(self, cycle_stabilizer_count: int) -> NDArray[np.int_]:
+        """
+        Output shape: (N, M, S)
+        - N is the number of measurement repetitions.
+        - M is the number of stabilizer repetitions.
+        - S is the number of stabilizer qubits.
+        :return: Tensor of ternary-classification at specific cycle.
+        """
+        return self._error_detection_identifier.get_ternary_stabilizer_classification(
+            cycle_stabilizer_count=cycle_stabilizer_count,
+        )
+
     def get_labeled_binary_stabilizer_classification(self, cycle_stabilizer_count: int) -> DataArray:
         """
         Retrieves binary classification data for stabilizer qubits in a labeled, structured format.
