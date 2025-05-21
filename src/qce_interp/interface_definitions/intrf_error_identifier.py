@@ -147,6 +147,17 @@ class IErrorDetectionIdentifier(ABC):
         raise InterfaceMethodException
 
     @abstractmethod
+    def get_ternary_stabilizer_classification(self, cycle_stabilizer_count: int) -> NDArray[np.int_]:
+        """
+        Output shape: (N, M, S)
+        - N is the number of measurement repetitions.
+        - M is the number of stabilizer repetitions.
+        - S is the number of stabilizer qubits.
+        :return: Tensor of ternary-classification at specific cycle.
+        """
+        raise InterfaceMethodException
+
+    @abstractmethod
     def get_ternary_projected_classification(self, cycle_stabilizer_count: int) -> NDArray[np.int_]:
         """
         Output shape: (N, 1, D)
@@ -523,6 +534,7 @@ class ErrorDetectionIdentifier(IErrorDetectionIdentifier):
             sub_defect_classification: NDArray[np.int_] = IStateClassifierContainer.calculate_defect(
                 m=sub_parity_classification,
                 initial_condition=state_classifier.expected_parity.value,
+                odd_weight_and_refocusing=state_classifier.odd_weight_and_refocusing,
             )
             result[:, :, i] = sub_defect_classification
         # (N, M(+1), S)
@@ -572,6 +584,40 @@ class ErrorDetectionIdentifier(IErrorDetectionIdentifier):
             )
             result[i, :, :] = state_classifier.get_binary_classification()
         # (N, 1, D) Transpose
+        result = result.transpose((1, 2, 0))
+        return result
+
+    @lru_cache(maxsize=None)
+    def get_ternary_stabilizer_classification(self, cycle_stabilizer_count: int) -> NDArray[np.int_]:
+        """
+        Output shape: (N, M, S)
+        - N is the number of measurement repetitions.
+        - M is the number of stabilizer repetitions.
+        - S is the number of stabilizer qubits.
+        :return: Tensor of ternary-classification at specific cycle.
+        """
+        # Data allocation
+        any_qubit_id: IQubitID = self.involved_stabilizer_qubit_ids[0]
+        stabilizer_acquisition_indices: NDArray[np.int_] = self._index_kernel.get_stabilizer_and_projected_cycle_acquisition_indices(qubit_id=any_qubit_id, cycle_stabilizer_count=cycle_stabilizer_count)
+        post_selection_mask = self.get_post_selection_mask(cycle_stabilizer_count=cycle_stabilizer_count)
+        stabilizer_acquisition_indices = stabilizer_acquisition_indices[post_selection_mask]
+
+        # Prepare output shape
+        n, m = stabilizer_acquisition_indices.shape
+        s: int = len(self.involved_stabilizer_qubit_ids)
+        # Guard clause, return empty array at 0 qec rounds
+        if stabilizer_acquisition_indices.size == 0:
+            return np.empty(shape=(n, m, s))
+
+        result: NDArray[np.int_] = np.zeros(shape=(s, n, m), dtype=np.int_)
+        for i, qubit_id in enumerate(self.involved_stabilizer_qubit_ids):
+            state_classifier: IStateClassifierContainer = self._classifier_lookup[qubit_id]
+            state_classifier: IStateClassifierContainer = state_classifier.reshape(
+                container=state_classifier,
+                index_slices=stabilizer_acquisition_indices,
+            )
+            result[i, :, :] = state_classifier.get_ternary_classification()
+        # (N, M, S) Transpose
         result = result.transpose((1, 2, 0))
         return result
 

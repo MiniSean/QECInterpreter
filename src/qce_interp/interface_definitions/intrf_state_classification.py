@@ -731,6 +731,14 @@ class IStateClassifierContainer(ABC):
     def stabilizer_reset(self) -> bool:
         """:return: Boolean whether parity resets each round."""
         raise InterfaceMethodException
+
+    @property
+    def odd_weight_and_refocusing(self) -> bool:
+        """
+        :return: Boolean whether parity is based on odd-number of element and elements are (flipped) refocused each round.
+        Mainly relevant for (weight-1) edge-stabilizers in 1D stability experiment.
+        """
+        raise InterfaceMethodException
     # endregion
 
     # region Interface Methods
@@ -787,7 +795,7 @@ class IStateClassifierContainer(ABC):
         return result
 
     @staticmethod
-    def calculate_defect(m: np.ndarray, initial_condition: int = +1) -> np.ndarray:
+    def calculate_defect(m: np.ndarray, initial_condition: int = +1, odd_weight_and_refocusing: bool = False) -> np.ndarray:
         """
         Calculate the derivative of a tensor of +1 and -1 values using the formula
         p[n+1] = m[n+1] * m[n], with p[0] = (initial condition) * m[0]. The operation is performed along the
@@ -795,9 +803,13 @@ class IStateClassifierContainer(ABC):
 
         :param m: Input tensor with arbitrary shape.
         :param initial_condition: Initial condition after taking derivative. (For p[0])
+        :param odd_weight_and_refocusing: If stabilizer defect originates from an odd-weight parity AND data qubits get refocused every round, the definition of defect is inverted.
         :return: First derivative of m -> p.
         """
-        return IStateClassifierContainer.calculate_derivative(m=m, initial_condition=initial_condition)
+        result = IStateClassifierContainer.calculate_derivative(m=m, initial_condition=initial_condition)
+        if odd_weight_and_refocusing:
+            result *= -1
+        return result
 
     @staticmethod
     def calculate_derivative(m: np.ndarray, initial_condition: int = +1) -> np.ndarray:
@@ -844,6 +856,7 @@ class StateClassifierContainer(IStateClassifierContainer):
     state_classification: NDArray[np.int_]
     _expected_parity: ParityType = field(default=ParityType.EVEN)
     _stabilizer_reset: bool = field(default=False)
+    _odd_weight_and_refocusing: bool = field(default=False)
 
     # region Interface Properties
     @property
@@ -855,6 +868,14 @@ class StateClassifierContainer(IStateClassifierContainer):
     def stabilizer_reset(self) -> bool:
         """:return: Boolean whether parity resets each round."""
         return self._stabilizer_reset
+
+    @property
+    def odd_weight_and_refocusing(self) -> bool:
+        """
+        :return: Boolean whether parity is based on odd-number of element and elements are (flipped) refocused each round.
+        Mainly relevant for (weight-1) edge-stabilizers in 1D stability experiment.
+        """
+        return self._odd_weight_and_refocusing
     # endregion
 
     # region Class Methods
@@ -884,6 +905,7 @@ class StateClassifierContainer(IStateClassifierContainer):
         return IStateClassifierContainer.calculate_defect(
             m=self.get_parity_classification(),
             initial_condition=self.expected_parity.value,
+            odd_weight_and_refocusing=self.odd_weight_and_refocusing,
         )
 
     def get_defect_rate(self) -> float:
@@ -911,6 +933,7 @@ class ShotsClassifierContainer(IStateClassifierContainer):
     decision_boundaries: DecisionBoundaries
     _expected_parity: ParityType = field(default=ParityType.EVEN)
     _stabilizer_reset: bool = field(default=False)
+    _odd_weight_and_refocusing: bool = field(default=False)
 
     # region Interface Properties
     @property
@@ -922,6 +945,14 @@ class ShotsClassifierContainer(IStateClassifierContainer):
     def stabilizer_reset(self) -> bool:
         """:return: Boolean whether parity resets each round."""
         return self._stabilizer_reset
+
+    @property
+    def odd_weight_and_refocusing(self) -> bool:
+        """
+        :return: Boolean whether parity is based on odd-number of element and elements are (flipped) refocused each round.
+        Mainly relevant for (weight-1) edge-stabilizers in 1D stability experiment.
+        """
+        return self._odd_weight_and_refocusing
     # endregion
 
     # region Class Properties
@@ -936,6 +967,7 @@ class ShotsClassifierContainer(IStateClassifierContainer):
             state_classification=self._process_tensor(self.shots, self.decision_boundaries.get_binary_predictions),
             _expected_parity=self.expected_parity,
             _stabilizer_reset=self.stabilizer_reset,
+            _odd_weight_and_refocusing=self.odd_weight_and_refocusing,
         )
 
     @property
@@ -945,6 +977,7 @@ class ShotsClassifierContainer(IStateClassifierContainer):
             state_classification=self._process_tensor(self.shots, self.decision_boundaries.get_predictions),
             _expected_parity=self.expected_parity,
             _stabilizer_reset=self.stabilizer_reset,
+            _odd_weight_and_refocusing=self.odd_weight_and_refocusing,
         )
     # endregion
 
@@ -981,6 +1014,7 @@ class ShotsClassifierContainer(IStateClassifierContainer):
             decision_boundaries=container.decision_boundaries,
             _expected_parity=container.expected_parity,
             _stabilizer_reset=container.stabilizer_reset,
+            _odd_weight_and_refocusing=container.odd_weight_and_refocusing,
         )
     # endregion
 
