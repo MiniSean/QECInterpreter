@@ -34,7 +34,12 @@ def initial_state_to_expected_parity(initial_state: InitialStateContainer, parit
     assert len(computed_parity) == len(involved_ancilla_qubit_ids), f"Expects parity to be defined for each involved ancilla qubit. Instead {len(computed_parity)} out of {len(involved_ancilla_qubit_ids)} are present."
 
     for qubit_id, parity in zip(involved_ancilla_qubit_ids, computed_parity):
-        even_parity: bool = parity != +1 if inverse_parity else parity == +1
+        # Determine even/odd weight parity
+        parity_group = parity_layout.get_parity_group(element=qubit_id)[0]
+        odd_weight_stabilizer: bool = qubit_id == parity_group.ancilla_id and len(parity_group.data_ids) % 2 != 0
+        # Switch parity
+        switch_parity: bool = inverse_parity ^ odd_weight_stabilizer
+        even_parity: bool = parity != +1 if switch_parity else parity == +1
         if even_parity:
             result[qubit_id] = ParityType.EVEN
         else:
