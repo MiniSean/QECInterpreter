@@ -266,23 +266,58 @@ class DecisionBoundaries:
         """
         :return: Intersection point of two linear equations defined by coefficients and intercepts.
         """
-        denominator: float = (-coef1.x / coef1.y + coef2.x / coef2.y)
-        numerator: float = (-intercept2 / coef2.y + intercept1 / coef1.y)
-        # Deal with possible zero-division error
-        if denominator != 0:
-            _x: float = numerator / denominator
-        elif denominator == 0 and numerator == 0:
-            _x: float = 1.0
-        else:
-            warn(f"[ZeroDivisionError] During intersect calculation of {coef1} and {coef2}.")
-            denominator = 1e-6
-            _x: float = numerator / denominator
+        """
+        Compute the (x, y) coordinates where the two lines
 
-        _y: float = -coef1.x / coef1.y * _x - intercept1 / coef1.y
-        return Vec2D(
-            x=_x,
-            y=_y,
-        )
+            coef1.x * x + coef1.y * y + intercept1 = 0
+            coef2.x * x + coef2.y * y + intercept2 = 0
+
+        intersect.
+
+        Parameters
+        ----------
+        coef1, coef2 : Vec2D
+            Line coefficients (a, b), i.e. normal-vector components.
+        intercept1, intercept2 : float
+            Line intercepts *c* (constant terms).
+
+        Returns
+        -------
+        Vec2D
+            Intersection point.
+
+        Raises
+        ------
+        ValueError
+            If the lines are parallel (det ≈ 0) or coincident, so no unique
+            intersection exists.
+        """
+        # Unpack coefficients
+        a1, b1 = coef1.x, coef1.y
+        a2, b2 = coef2.x, coef2.y
+
+        # Determinant of the 2×2 system
+        det: float = a1 * b2 - a2 * b1
+        tol: float = 1e-12
+
+        if abs(det) < tol:
+            # Parallel or coincident — inspect intercepts for distinction
+            if abs(a1 * intercept2 - a2 * intercept1) < tol and \
+               abs(b1 * intercept2 - b2 * intercept1) < tol:
+                # raise ValueError("Lines are coincident; infinite intersections.")
+                return Vec2D(x=0.0, y=0.0)
+            # raise ValueError("Lines are parallel; no unique intersection.")
+            return Vec2D(x=0.0, y=0.0)
+
+        # Solve A x = b  (A = [[a1, b1], [a2, b2]], b = [-c1, -c2])
+        A = np.array([
+            [a1, b1],
+            [a2, b2],
+        ], dtype=float)
+        b = np.array([-intercept1, -intercept2], dtype=float)
+        x, y = np.linalg.solve(A, b)
+
+        return Vec2D.from_vector(np.array([x, y]))
 
     @staticmethod
     def _calculate_intersection_binary_case(coef1: Vec2D, intercept1: float):
@@ -731,6 +766,14 @@ class IStateClassifierContainer(ABC):
     def stabilizer_reset(self) -> bool:
         """:return: Boolean whether parity resets each round."""
         raise InterfaceMethodException
+
+    @property
+    def odd_weight_and_refocusing(self) -> bool:
+        """
+        :return: Boolean whether parity is based on odd-number of element and elements are (flipped) refocused each round.
+        Mainly relevant for (weight-1) edge-stabilizers in 1D stability experiment.
+        """
+        raise InterfaceMethodException
     # endregion
 
     # region Interface Methods
@@ -787,7 +830,7 @@ class IStateClassifierContainer(ABC):
         return result
 
     @staticmethod
-    def calculate_defect(m: np.ndarray, initial_condition: int = +1) -> np.ndarray:
+    def calculate_defect(m: np.ndarray, initial_condition: int = +1, odd_weight_and_refocusing: bool = False) -> np.ndarray:
         """
         Calculate the derivative of a tensor of +1 and -1 values using the formula
         p[n+1] = m[n+1] * m[n], with p[0] = (initial condition) * m[0]. The operation is performed along the
@@ -795,9 +838,13 @@ class IStateClassifierContainer(ABC):
 
         :param m: Input tensor with arbitrary shape.
         :param initial_condition: Initial condition after taking derivative. (For p[0])
+        :param odd_weight_and_refocusing: If stabilizer defect originates from an odd-weight parity AND data qubits get refocused every round, the definition of defect is inverted.
         :return: First derivative of m -> p.
         """
-        return IStateClassifierContainer.calculate_derivative(m=m, initial_condition=initial_condition)
+        result = IStateClassifierContainer.calculate_derivative(m=m, initial_condition=initial_condition)
+        if odd_weight_and_refocusing:
+            result *= -1
+        return result
 
     @staticmethod
     def calculate_derivative(m: np.ndarray, initial_condition: int = +1) -> np.ndarray:
@@ -844,6 +891,7 @@ class StateClassifierContainer(IStateClassifierContainer):
     state_classification: NDArray[np.int_]
     _expected_parity: ParityType = field(default=ParityType.EVEN)
     _stabilizer_reset: bool = field(default=False)
+    _odd_weight_and_refocusing: bool = field(default=False)
 
     # region Interface Properties
     @property
@@ -855,6 +903,14 @@ class StateClassifierContainer(IStateClassifierContainer):
     def stabilizer_reset(self) -> bool:
         """:return: Boolean whether parity resets each round."""
         return self._stabilizer_reset
+
+    @property
+    def odd_weight_and_refocusing(self) -> bool:
+        """
+        :return: Boolean whether parity is based on odd-number of element and elements are (flipped) refocused each round.
+        Mainly relevant for (weight-1) edge-stabilizers in 1D stability experiment.
+        """
+        return self._odd_weight_and_refocusing
     # endregion
 
     # region Class Methods
@@ -884,6 +940,7 @@ class StateClassifierContainer(IStateClassifierContainer):
         return IStateClassifierContainer.calculate_defect(
             m=self.get_parity_classification(),
             initial_condition=self.expected_parity.value,
+            odd_weight_and_refocusing=self.odd_weight_and_refocusing,
         )
 
     def get_defect_rate(self) -> float:
@@ -911,6 +968,7 @@ class ShotsClassifierContainer(IStateClassifierContainer):
     decision_boundaries: DecisionBoundaries
     _expected_parity: ParityType = field(default=ParityType.EVEN)
     _stabilizer_reset: bool = field(default=False)
+    _odd_weight_and_refocusing: bool = field(default=False)
 
     # region Interface Properties
     @property
@@ -922,6 +980,14 @@ class ShotsClassifierContainer(IStateClassifierContainer):
     def stabilizer_reset(self) -> bool:
         """:return: Boolean whether parity resets each round."""
         return self._stabilizer_reset
+
+    @property
+    def odd_weight_and_refocusing(self) -> bool:
+        """
+        :return: Boolean whether parity is based on odd-number of element and elements are (flipped) refocused each round.
+        Mainly relevant for (weight-1) edge-stabilizers in 1D stability experiment.
+        """
+        return self._odd_weight_and_refocusing
     # endregion
 
     # region Class Properties
@@ -936,6 +1002,7 @@ class ShotsClassifierContainer(IStateClassifierContainer):
             state_classification=self._process_tensor(self.shots, self.decision_boundaries.get_binary_predictions),
             _expected_parity=self.expected_parity,
             _stabilizer_reset=self.stabilizer_reset,
+            _odd_weight_and_refocusing=self.odd_weight_and_refocusing,
         )
 
     @property
@@ -945,6 +1012,7 @@ class ShotsClassifierContainer(IStateClassifierContainer):
             state_classification=self._process_tensor(self.shots, self.decision_boundaries.get_predictions),
             _expected_parity=self.expected_parity,
             _stabilizer_reset=self.stabilizer_reset,
+            _odd_weight_and_refocusing=self.odd_weight_and_refocusing,
         )
     # endregion
 
@@ -981,6 +1049,7 @@ class ShotsClassifierContainer(IStateClassifierContainer):
             decision_boundaries=container.decision_boundaries,
             _expected_parity=container.expected_parity,
             _stabilizer_reset=container.stabilizer_reset,
+            _odd_weight_and_refocusing=container.odd_weight_and_refocusing,
         )
     # endregion
 

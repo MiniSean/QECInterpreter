@@ -285,7 +285,8 @@ class StateClassificationTestCase(unittest.TestCase):
         ])
         defect = IStateClassifierContainer.calculate_defect(
             m=parities,
-            initial_condition=-1
+            initial_condition=-1,
+            odd_weight_and_refocusing=False,
         )
         assert_array_equal(
             defect,
@@ -305,7 +306,8 @@ class StateClassificationTestCase(unittest.TestCase):
         ])
         defect = IStateClassifierContainer.calculate_defect(
             m=parities,
-            initial_condition=-1
+            initial_condition=-1,
+            odd_weight_and_refocusing=False,
         )
         assert_array_equal(
             defect,
@@ -374,6 +376,7 @@ class StateClassificationTestCase(unittest.TestCase):
                     IStateClassifierContainer.calculate_defect(
                         IStateClassifierContainer.binary_to_eigenvalue(p),
                         initial_condition=initial_condition,
+                        odd_weight_and_refocusing=False,
                     )
                 )
 
