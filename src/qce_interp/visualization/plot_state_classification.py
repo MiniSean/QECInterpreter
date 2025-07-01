@@ -8,6 +8,7 @@ from enum import Enum, unique, auto
 from qce_interp.utilities.geometric_definitions import Vec2D, Polygon, euclidean_distance
 from qce_interp.interface_definitions.intrf_state_classification import (
     IStateAcquisitionContainer,
+    StateAcquisitionContainer,
     StateBoundaryKey,
     DirectedStateBoundaryKey,
     DecisionBoundaries,
@@ -524,7 +525,7 @@ def plot_decision_region(state_classifier: IStateAcquisitionContainer, **kwargs)
     return fig, ax
 
 
-def plot_state_classification(state_classifier: IStateAcquisitionContainer, **kwargs) -> IFigureAxesPair:
+def plot_state_classification(state_classifier: IStateAcquisitionContainer, use_binary_classification: bool = False, **kwargs) -> IFigureAxesPair:
     """
     Creates a plot visualizing state classification and decision boundaries.
 
@@ -532,6 +533,14 @@ def plot_state_classification(state_classifier: IStateAcquisitionContainer, **kw
     :param kwargs: Additional keyword arguments for plot customization.
     :return: Tuple containing the figure and axes of the plot.
     """
+    if use_binary_classification:
+        state_classifier = StateAcquisitionContainer.from_state_acquisitions(
+            acquisitions=[
+                state_classifier.get_state_acquisition(state=StateKey.STATE_0),
+                state_classifier.get_state_acquisition(state=StateKey.STATE_1),
+            ]
+        )
+
     decision_boundaries: DecisionBoundaries = state_classifier.classification_boundaries
     kwargs[SubplotKeywordEnum.AXES_FORMAT.value] = IQAxesFormat()
     kwargs[SubplotKeywordEnum.LABEL_FORMAT.value] = LabelFormat(

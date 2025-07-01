@@ -266,58 +266,23 @@ class DecisionBoundaries:
         """
         :return: Intersection point of two linear equations defined by coefficients and intercepts.
         """
-        """
-        Compute the (x, y) coordinates where the two lines
+        denominator: float = (-coef1.x / coef1.y + coef2.x / coef2.y)
+        numerator: float = (-intercept2 / coef2.y + intercept1 / coef1.y)
+        # Deal with possible zero-division error
+        if denominator != 0:
+            _x: float = numerator / denominator
+        elif denominator == 0 and numerator == 0:
+            _x: float = 1.0
+        else:
+            warn(f"[ZeroDivisionError] During intersect calculation of {coef1} and {coef2}.")
+            denominator = 1e-6
+            _x: float = numerator / denominator
 
-            coef1.x * x + coef1.y * y + intercept1 = 0
-            coef2.x * x + coef2.y * y + intercept2 = 0
-
-        intersect.
-
-        Parameters
-        ----------
-        coef1, coef2 : Vec2D
-            Line coefficients (a, b), i.e. normal-vector components.
-        intercept1, intercept2 : float
-            Line intercepts *c* (constant terms).
-
-        Returns
-        -------
-        Vec2D
-            Intersection point.
-
-        Raises
-        ------
-        ValueError
-            If the lines are parallel (det ≈ 0) or coincident, so no unique
-            intersection exists.
-        """
-        # Unpack coefficients
-        a1, b1 = coef1.x, coef1.y
-        a2, b2 = coef2.x, coef2.y
-
-        # Determinant of the 2×2 system
-        det: float = a1 * b2 - a2 * b1
-        tol: float = 1e-12
-
-        if abs(det) < tol:
-            # Parallel or coincident — inspect intercepts for distinction
-            if abs(a1 * intercept2 - a2 * intercept1) < tol and \
-               abs(b1 * intercept2 - b2 * intercept1) < tol:
-                # raise ValueError("Lines are coincident; infinite intersections.")
-                return Vec2D(x=0.0, y=0.0)
-            # raise ValueError("Lines are parallel; no unique intersection.")
-            return Vec2D(x=0.0, y=0.0)
-
-        # Solve A x = b  (A = [[a1, b1], [a2, b2]], b = [-c1, -c2])
-        A = np.array([
-            [a1, b1],
-            [a2, b2],
-        ], dtype=float)
-        b = np.array([-intercept1, -intercept2], dtype=float)
-        x, y = np.linalg.solve(A, b)
-
-        return Vec2D.from_vector(np.array([x, y]))
+        _y: float = -coef1.x / coef1.y * _x - intercept1 / coef1.y
+        return Vec2D(
+            x=_x,
+            y=_y,
+        )
 
     @staticmethod
     def _calculate_intersection_binary_case(coef1: Vec2D, intercept1: float):
