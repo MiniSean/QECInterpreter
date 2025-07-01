@@ -3,6 +3,7 @@
 # -------------------------------------------
 import numpy as np
 from numpy.typing import NDArray
+from itertools import combinations
 from typing import List, Dict, Tuple
 from enum import Enum, unique, auto
 from qce_interp.utilities.geometric_definitions import Vec2D, Polygon, euclidean_distance
@@ -27,6 +28,7 @@ import matplotlib.ticker as ticker
 from matplotlib.colors import ListedColormap, PowerNorm, Colormap
 from matplotlib import colormaps
 from matplotlib import patches
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 
 
 STATE_COLORMAP: Dict[StateKey, Colormap] = {
@@ -393,62 +395,172 @@ def rotation_point_180_degrees(point: Vec2D, center: Vec2D) -> Vec2D:
     return result_point
 
 
-def plot_decision_boundary(decision_boundaries: DecisionBoundaries, **kwargs) -> IFigureAxesPair:
+def _get_line_box_intersections(
+    coefficients: NDArray[np.float64],
+    intercept: float,
+    x_limits: Tuple[float, float],
+    y_limits: Tuple[float, float]
+) -> List[NDArray[np.float64]]:
     """
-    Plots decision boundaries for state classification.
+    Finds the intersection points of a decision line with the plot's bounding box.
 
-    :param decision_boundaries: Decision boundaries of states.
-    :param kwargs: Additional keyword arguments for plot customization.
-    :return: Tuple containing the figure and axes of the plot.
+    :param coefficients: The weight vector (w) of the line equation (w*x + b = 0).
+    :param intercept: The intercept (b) of the line equation.
+    :param x_limits: A tuple containing the minimum and maximum x-axis limits.
+    :param y_limits: A tuple containing the minimum and maximum y-axis limits.
+    :return: A list of unique intersection points as numpy arrays.
     """
     # Data allocation
-    center: Vec2D = decision_boundaries.mean
-    boundary_keys: List[StateBoundaryKey] = list(decision_boundaries.boundary_lookup.keys())
+    intersection_points: List[NDArray[np.float64]] = []
+    x_min, x_max = x_limits
+    y_min, y_max = y_limits
 
-    # Figures and Axes
+    # Check intersections with vertical boundaries (x = x_min, x = x_max)
+    # The line equation is w[0]*x + w[1]*y + b = 0. Solved for y: y = -(w[0]*x + b) / w[1]
+    if abs(coefficients[1]) > 1e-9:  # Avoid division by zero for horizontal lines
+        for x_value in [x_min, x_max]:
+            y_value = -(coefficients[0] * x_value + intercept) / coefficients[1]
+            if y_min <= y_value <= y_max:
+                intersection_points.append(np.array([x_value, y_value]))
+
+    # Check intersections with horizontal boundaries (y = y_min, y = y_max)
+    # Solved for x: x = -(w[1]*y + b) / w[0]
+    if abs(coefficients[0]) > 1e-9:  # Avoid division by zero for vertical lines
+        for y_value in [y_min, y_max]:
+            x_value = -(coefficients[1] * y_value + intercept) / coefficients[0]
+            if x_min <= x_value <= x_max:
+                intersection_points.append(np.array([x_value, y_value]))
+
+    # Remove duplicate points if the line passes through a corner
+    unique_points: List[NDArray[np.float64]] = []
+    for point in intersection_points:
+        is_duplicate = any(np.allclose(point, unique_point) for unique_point in unique_points)
+        if not is_duplicate:
+            unique_points.append(point)
+
+    return unique_points
+
+
+def plot_decision_boundary(decision_boundaries: DecisionBoundaries, **kwargs) -> IFigureAxesPair:
+    """
+    Plots decision boundaries and regions for an LDA model.
+
+    This function visualizes the classification results by drawing the decision
+    regions for each class and the linear boundaries between each pair of classes.
+    It uses the existing limits of the provided axes to define the plot area.
+    For 3-class problems, it draws rays from the central intersection point outwards.
+
+    :param decision_boundaries: A dataclass instance containing the trained LDA model.
+    :param axes: A matplotlib Axes object to plot on.
+    :return: A tuple containing the matplotlib Figure and Axes objects.
+    """
+    # Data allocation
+    discriminator: LinearDiscriminantAnalysis = decision_boundaries._discriminator
     fig, ax = construct_subplot(**kwargs)
-    boundary_intersections: Dict[DirectedStateBoundaryKey, Vec2D] = get_axes_intersection_lookup(decision_boundaries=decision_boundaries, ax=ax)
+    number_of_classes: int = len(discriminator.classes_)
+    line_width: float = 1.0
+    meshgrid_samples: int = 101
+    x_limits: Tuple[float, float] = ax.get_xlim()
+    y_limits: Tuple[float, float] = ax.get_ylim()
 
-    # Store the current limits
-    original_xlim = ax.get_xlim()
-    original_ylim = ax.get_ylim()
-    intersection_points: List[Vec2D] = []
-    two_state_classification: bool = len(boundary_keys) == 1
-    if two_state_classification:
-        for boundary_key in boundary_keys:
-            intersection_points.extend([
-                boundary_intersections[DirectedStateBoundaryKey(boundary_key.state_a, boundary_key.state_b)],
-                boundary_intersections[DirectedStateBoundaryKey(boundary_key.state_b, boundary_key.state_a)]
-            ])
-    else:
-        for boundary_key in boundary_keys:
-            intersection_points.extend([
-                boundary_intersections[DirectedStateBoundaryKey(boundary_key.state_a, boundary_key.state_b)],
-            ])
-
-    # Clip intersection points
-    for i, intersection_point in enumerate(intersection_points):
-        _, clipped_intersection_point = clip_line_with_bounds(
-            line_point1=center,
-            line_point2=intersection_point,
-            min_x=original_xlim[0],
-            max_x=original_xlim[1],
-            min_y=original_ylim[0],
-            max_y=original_ylim[1],
+    if discriminator.n_features_in_ != 2:
+        raise ValueError(
+            "This plotting function only supports 2D feature spaces. "
+            f"The provided LDA model was trained on {discriminator.n_features_in_} features."
         )
-        intersection_points[i] = clipped_intersection_point  # Update intersection points
 
-    for intersection_point in intersection_points:
-        ax.plot(
-            [center.x, intersection_point.x],
-            [center.y, intersection_point.y],
-            linestyle='--',
-            color='k',
-            linewidth=1,
-        )
-        # Restore the original limits
-        ax.set_xlim(original_xlim)
-        ax.set_ylim(original_ylim)
+    # Define custom colormaps based on number of classes
+    if number_of_classes == 2:
+        colors = [STATE_COLORMAP[StateKey.STATE_0](1.0), STATE_COLORMAP[StateKey.STATE_1](1.0)]
+        background_cmap = ListedColormap(colors)
+    else:  # n_classes >= 3
+        colors = [_color_map(1.0) for _color_map in STATE_COLORMAP.values()]
+        background_cmap = ListedColormap(colors)
+
+    # Create mesh grid for background plotting
+    x_grid, y_grid = np.meshgrid(
+        np.linspace(x_limits[0], x_limits[1], meshgrid_samples),
+        np.linspace(y_limits[0], y_limits[1], meshgrid_samples)
+    )
+    grid_points = np.c_[x_grid.ravel(), y_grid.ravel()]
+
+    # Plot decision regions (background)
+    class_grid: NDArray[np.int_] = discriminator.predict(grid_points)
+    class_grid = class_grid.reshape(x_grid.shape)
+    ax.contourf(x_grid, y_grid, class_grid, cmap=background_cmap, alpha=0.2, zorder=-10)
+
+    # Plot decision boundary lines
+    if number_of_classes == 2:
+        coefficients: NDArray[np.float64] = discriminator.coef_[0]
+        intercept: float = discriminator.intercept_[0]
+        line_x_values = np.array(x_limits)
+        # Handle vertical line case
+        if abs(coefficients[1]) > 1e-9:
+            line_y_values = -(coefficients[0] * line_x_values + intercept) / coefficients[1]
+            ax.plot(line_x_values, line_y_values, 'k--', lw=line_width)
+        else:
+            vertical_line_x = float(-intercept / coefficients[0])
+            ax.axvline(x=vertical_line_x, color='k', linestyle='--', lw=line_width)
+
+    elif number_of_classes == 3:
+        # For 3 classes, find the central intersection point of the three boundaries
+        w01 = discriminator.coef_[0, :] - discriminator.coef_[1, :]
+        b01 = discriminator.intercept_[0] - discriminator.intercept_[1]
+        w12 = discriminator.coef_[1, :] - discriminator.coef_[2, :]
+        b12 = discriminator.intercept_[1] - discriminator.intercept_[2]
+
+        # Solve the system of linear equations to find the intersection
+        system_matrix = np.array([w01, w12])
+        system_vector = np.array([-b01, -b12])
+        try:
+            center_point: NDArray[np.float64] = np.linalg.solve(system_matrix, system_vector)
+        except np.linalg.LinAlgError:
+            center_point = None  # Fallback for parallel lines
+
+        if center_point is not None:
+            # Draw rays from the center point outwards for each boundary
+            for i, j in combinations(range(number_of_classes), 2):
+                k = next(c for c in range(number_of_classes) if c not in (i, j))
+                coefficients = discriminator.coef_[i, :] - discriminator.coef_[j, :]
+                intercept = discriminator.intercept_[i] - discriminator.intercept_[j]
+
+                # Find where the full line intersects the plot edges
+                edge_points = _get_line_box_intersections(coefficients, intercept, x_limits, y_limits)
+                if len(edge_points) != 2:
+                    continue  # Should not happen for non-degenerate lines
+
+                # Determine which of the two line segments (center -> edge) is the correct ray
+                mid_point = (center_point + edge_points[0]) / 2.0
+                predicted_class_at_midpoint = discriminator.predict([mid_point])[0]
+
+                if predicted_class_at_midpoint == discriminator.classes_[k]:
+                    ray_end_point = edge_points[1]
+                else:
+                    ray_end_point = edge_points[0]
+
+                ax.plot(
+                    [center_point[0], ray_end_point[0]],
+                    [center_point[1], ray_end_point[1]],
+                    'k--',
+                    lw=line_width,
+                )
+
+    elif number_of_classes > 3:
+        # For >3 classes, draw full lines as there's no single intersection point
+        for i, j in combinations(range(number_of_classes), 2):
+            coefficients = discriminator.coef_[i, :] - discriminator.coef_[j, :]
+            intercept = discriminator.intercept_[i] - discriminator.intercept_[j]
+            line_x_values = np.array(x_limits)
+            if abs(coefficients[1]) > 1e-9:
+                line_y_values = -(coefficients[0] * line_x_values + intercept) / coefficients[1]
+                ax.plot(line_x_values, line_y_values, 'k--', lw=line_width)
+            else:
+                vertical_line_x = float(-intercept / coefficients[0])
+                ax.axvline(x=vertical_line_x, color='k', linestyle='--', lw=line_width)
+
+    # Final axes formatting
+    ax.set_xlim(x_limits)
+    ax.set_ylim(y_limits)
 
     return fig, ax
 
@@ -552,6 +664,5 @@ def plot_state_classification(state_classifier: IStateAcquisitionContainer, use_
     kwargs[SubplotKeywordEnum.HOST_AXES.value] = (fig, ax)
     plot_state_shots(state_classifier=state_classifier, **kwargs)
     plot_decision_boundary(decision_boundaries=decision_boundaries, **kwargs)
-    fig, ax = plot_decision_region(state_classifier=state_classifier, **kwargs)
     ax.legend(frameon=False)
     return fig, ax
