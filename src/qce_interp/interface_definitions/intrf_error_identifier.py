@@ -834,28 +834,28 @@ class ErrorDetectionIdentifier(IErrorDetectionIdentifier):
         full_pass_mask: NDArray[np.bool_] = np.full(shape=(self._index_kernel.experiment_repetitions,), fill_value=True, dtype=np.bool_)
         result: NDArray[np.bool_] = full_pass_mask
         # (Optionally) add heralded post-selection
-        if self.include_heralded_post_selection:
+        if self.include_heralded_post_selection and self._index_kernel.include_heralded_initialization:
             heralded_selection_mask = self.get_heralded_post_selection_mask(
                 cycle_stabilizer_count=cycle_stabilizer_count,
                 post_selection_qubits=post_selection_qubits,
             )
             result = np.logical_and(result, heralded_selection_mask)
         # (Optionally) add leakage (during data-qubit projection) post-selection
-        if self.include_projected_leakage_post_selection:
+        if self.include_projected_leakage_post_selection and self._index_kernel.include_qutrit_calibration_points:
             projected_leakage_selection_mask = self.get_projected_leakage_post_selection_mask(
                 cycle_stabilizer_count=cycle_stabilizer_count,
                 post_selection_qubits=post_selection_qubits,
             )
             result = np.logical_and(result, projected_leakage_selection_mask)
         # (Optionally) add leakage (during data-qubit and ancilla-qubit projection) post-selection
-        if self.include_all_projected_leakage_post_selection:
+        if self.include_all_projected_leakage_post_selection and self._index_kernel.include_qutrit_calibration_points:
             all_projected_leakage_selection_mask = self.get_all_projected_leakage_post_selection_mask(
                 cycle_stabilizer_count=cycle_stabilizer_count,
                 post_selection_qubits=post_selection_qubits,
             )
             result = np.logical_and(result, all_projected_leakage_selection_mask)
         # (Optionally) add leakage (during stabilizer-qubit cycle) post-selection
-        if self.include_stabilizer_leakage_post_selection:
+        if self.include_stabilizer_leakage_post_selection and self._index_kernel.include_qutrit_calibration_points:
             stabilizer_leakage_selection_mask = self.get_stabilizer_leakage_post_selection_mask(
                 cycle_stabilizer_count=cycle_stabilizer_count,
                 post_selection_qubits=post_selection_qubits,
