@@ -89,17 +89,99 @@ class DirectedStateBoundaryKey(StateBoundaryKey):
     # endregion
 
 
+class IDecisionBoundaries(ABC):
+    """
+    Interface class, describing exposed methods and properties related to qubit-state decision boundaries.
+    """
+
+    # region Interface Properties
+    @property
+    @abstractmethod
+    def mean(self) -> Vec2D:
+        """:return: Mean IQ-vector based on state boundaries."""
+        raise InterfaceMethodException
+
+    @property
+    @abstractmethod
+    def state_prediction_index_lookup(self) -> Dict[StateKey, int]:
+        """Lookup dictionary that maps state key to discriminator prediction index."""
+        raise InterfaceMethodException
+
+    @property
+    @abstractmethod
+    def prediction_index_to_state_lookup(self) -> Dict[int, StateKey]:
+        """:return: Lookup dictionary that maps discriminator prediction index to state key."""
+        raise InterfaceMethodException
+
+    @property
+    @abstractmethod
+    def boundary_lookup(self) -> Dict[StateBoundaryKey, Vec2D]:
+        """:return: Lookup dictionary pairing state boundary key to IQ vector coordinates."""
+        raise InterfaceMethodException
+    # endregion
+
+    # region Interface Methods
+    @abstractmethod
+    def get_boundary(self, key: StateBoundaryKey) -> Optional[Vec2D]:
+        """
+        :return: Boundary point (2D) between state A and B.
+        If state A == B or if state-boundary is not known, return None.
+        """
+        raise InterfaceMethodException
+
+    @abstractmethod
+    def get_boundary_between(self, state_a: StateKey, state_b: StateKey) -> Optional[Vec2D]:
+        """
+        :return: Boundary point (2D) between state A and B.
+        If state A == B or if state-boundary is not known, return None.
+        """
+        raise InterfaceMethodException
+
+    @abstractmethod
+    def get_binary_predictions(self, shots: NDArray[np.complex64]) -> NDArray[np.int_]:
+        """
+        NOTE: Forces classification of element in group 1 or 2, disregarding other groups.
+        NOTE: Returns integer prediction value, can be mapped to state-enum using self.prediction_index_to_state_lookup.
+        :return: Array-like of State key predictions based on shots discrimination.
+        """
+        raise InterfaceMethodException
+
+    @abstractmethod
+    def get_predictions(self, shots: NDArray[np.complex64]) -> NDArray[np.int_]:
+        """
+        NOTE: Returns integer prediction value, can be mapped to state-enum using self.prediction_index_to_state_lookup.
+        :return: Array-like of State key predictions based on shots discrimination.
+        """
+        raise InterfaceMethodException
+
+    @abstractmethod
+    def get_prediction(self, shot: np.complex64) -> StateKey:
+        """:return: State key prediction based on shot discrimination."""
+        raise InterfaceMethodException
+
+    @abstractmethod
+    def get_fidelity(self, shots: NDArray[np.complex64], assigned_state: StateKey) -> float:
+        """:return: Assignment fidelity defined as the probability of shots being part of assigned state."""
+        raise InterfaceMethodException
+
+    @abstractmethod
+    def post_select_on(self, shots_to_filter: NDArray[np.complex64], conditional_shots: NDArray[np.complex64], conditional_state: StateKey) -> NDArray[np.complex64]:
+        """:return: Filtered shots based on conditional shots (of same length) and conditional state."""
+        raise InterfaceMethodException
+    # endregion
+
+
 @dataclass(frozen=True)
-class DecisionBoundaries:
+class DecisionBoundaries(IDecisionBoundaries):
     """Data class, containing decision boundaries based on states."""
-    boundary_lookup: Dict[StateBoundaryKey, Vec2D]
+    _boundary_lookup: Dict[StateBoundaryKey, Vec2D]
     _discriminator: LinearDiscriminantAnalysis
     _state_lookup: Dict[StateKey, int]
     """Lookup dictionary that maps state key to discriminator prediction index."""
     _mean: Optional[Vec2D] = field(default=None)
     """Explicit specification of boundary means, necessary when handling 2-state classification."""
 
-    # region Class Properties
+    # region Interface Properties
     @property
     def mean(self) -> Vec2D:
         """:return: Mean IQ-vector based on state boundaries."""
@@ -119,9 +201,13 @@ class DecisionBoundaries:
         """:return: Lookup dictionary that maps discriminator prediction index to state key."""
         return {index: state for state, index in self.state_prediction_index_lookup.items()}
 
+    @property
+    def boundary_lookup(self) -> Dict[StateBoundaryKey, Vec2D]:
+        """:return: Lookup dictionary pairing state boundary key to IQ vector coordinates."""
+        return self._boundary_lookup
     # endregion
 
-    # region Class Methods
+    # region Interface Methods
     def get_boundary(self, key: StateBoundaryKey) -> Optional[Vec2D]:
         """
         :return: Boundary point (2D) between state A and B.
@@ -149,13 +235,13 @@ class DecisionBoundaries:
         :return: Array-like of State key predictions based on shots discrimination.
         """
         shot_reshaped: NDArray[np.float32] = StateAcquisitionContainer.complex_to_real_imag(shots)
-        # Step 1: Predict probabilities
+        # Predict probabilities
         probabilities: np.ndarray = self._discriminator.predict_proba(shot_reshaped)
-        # Step 2: Compare probabilities for groups 1 and 2
+        # Compare probabilities for groups 1 and 2
         # Assuming classes are labeled as 0, 1, 2 for groups 1, 2, 3 respectively
         prob_group_1: np.ndarray = probabilities[:, 0]
         prob_group_2: np.ndarray = probabilities[:, 1]
-        # Step 3: Classify based on higher probability
+        # Classify based on higher probability
         # Assign to group 1 if prob_group_1 > prob_group_2, else assign to group 2
         state_indices: NDArray[np.int_] = np.where(prob_group_1 > prob_group_2, 0, 1)  # 0 for group 1, 1 for group 2
         return state_indices
@@ -194,7 +280,9 @@ class DecisionBoundaries:
         mask: NDArray[np.int_] = np.array(
             [1 if state_index == conditional_index else np.nan for state_index in state_indices])
         return shots_to_filter[~np.isnan(mask)]
+    # endregion
 
+    # region Class Methods
     @classmethod
     def from_acquisition_container(cls, container: 'StateAcquisitionContainer') -> 'DecisionBoundaries':
         """
@@ -238,7 +326,7 @@ class DecisionBoundaries:
             )
             center: Vec2D = 0.5 * (container.state_acquisition_lookup[state_a].center + container.state_acquisition_lookup[state_b].center)
             return DecisionBoundaries(
-                boundary_lookup=intersection_lookup,
+                _boundary_lookup=intersection_lookup,
                 _discriminator=discriminator,
                 _state_lookup=state_lookup,
                 _mean=center,
@@ -253,11 +341,10 @@ class DecisionBoundaries:
                 intercept2=intercept_lookup[state_b],
             )
         return DecisionBoundaries(
-            boundary_lookup=intersection_lookup,
+            _boundary_lookup=intersection_lookup,
             _discriminator=discriminator,
             _state_lookup=state_lookup,
         )
-
     # endregion
 
     # region Static Class Methods
@@ -292,6 +379,213 @@ class DecisionBoundaries:
         x_intercept = -intercept1 / coef1.x if coef1.x != 0 else np.inf
         y_intercept = -intercept1 / coef1.y if coef1.y != 0 else np.inf
         return Vec2D(x=x_intercept, y=y_intercept)
+    # endregion
+
+
+@dataclass(frozen=True)
+class GaussianDecisionBoundaries(IDecisionBoundaries):
+    """
+    Data class, containing decision boundaries based on 2D Gaussian distributions for 0- and 1-states.
+
+    This class provides an alternative to the LinearDiscriminantAnalysis by modeling the
+    0- and 1-states as 2D Gaussian distributions in the IQ-plane.
+
+    Classification is performed based on the Mahalanobis distance of a point to each
+    Gaussian center. A point is classified as state 0 or 1 if it falls within a
+    specified sigma-threshold of the respective distribution. If it falls within both,
+    it is assigned to the closer one. Points outside both distributions are classified as state 2.
+    """
+    _mean_0: Vec2D
+    _mean_1: Vec2D
+    _inv_cov_0: NDArray[np.float64]
+    _inv_cov_1: NDArray[np.float64]
+    _sigma_threshold: float
+    _linear_boundaries: DecisionBoundaries  # Internal instance for delegation
+    _state_lookup: Dict[StateKey, int] = field(default_factory=lambda: {StateKey.STATE_0: 0, StateKey.STATE_1: 1, StateKey.STATE_2: 2})
+
+    # region Interface Properties
+    @property
+    def mean(self) -> Vec2D:
+        """:return: Mean IQ-vector, calculated as the midpoint between the two Gaussian centers."""
+        return 0.5 * (self._mean_0 + self._mean_1)
+
+    @property
+    def state_prediction_index_lookup(self) -> Dict[StateKey, int]:
+        """Lookup dictionary that maps state key to discriminator prediction index."""
+        return self._state_lookup
+
+    @property
+    def prediction_index_to_state_lookup(self) -> Dict[int, StateKey]:
+        """:return: Lookup dictionary that maps discriminator prediction index to state key."""
+        return {index: state for state, index in self.state_prediction_index_lookup.items()}
+
+    @property
+    def boundary_lookup(self) -> Dict[StateBoundaryKey, Vec2D]:
+        """:return: An empty dictionary, as boundaries are elliptical and not single points."""
+        return self._linear_boundaries.boundary_lookup
+    # endregion
+
+    # region Interface Methods
+    def get_boundary(self, key: StateBoundaryKey) -> Optional[Vec2D]:
+        """:return: Delegated linear boundary point."""
+        return self.get_boundary_between(key.state_a, key.state_b)
+
+    def get_boundary_between(self, state_a: StateKey, state_b: StateKey) -> Optional[Vec2D]:
+        """:return: Delegated linear boundary point."""
+        return self._linear_boundaries.get_boundary_between(state_a, state_b)
+
+    def get_binary_predictions(self, shots: NDArray[np.complex64]) -> NDArray[np.int_]:
+        """
+        Forces classification of each shot into state 0 or 1, disregarding state 2.
+        Classification is based on the smaller Mahalanobis distance, ignoring the sigma threshold.
+
+        :param shots: Array of complex-valued IQ shots.
+        :return: Array of binary state predictions (0 or 1).
+        """
+        if shots.size == 0:
+            return np.array([], dtype=int)
+
+        points: NDArray[np.float64] = StateAcquisitionContainer.complex_to_real_imag(shots)
+        mu_0: NDArray[np.float64] = self._mean_0.to_vector()
+        mu_1: NDArray[np.float64] = self._mean_1.to_vector()
+
+        delta_0: NDArray[np.float64] = points - mu_0
+        delta_1: NDArray[np.float64] = points - mu_1
+        mahalanobis_sq_0: NDArray[np.float64] = np.sum(np.dot(delta_0, self._inv_cov_0) * delta_0, axis=1)
+        mahalanobis_sq_1: NDArray[np.float64] = np.sum(np.dot(delta_1, self._inv_cov_1) * delta_1, axis=1)
+
+        # Assign to 0 if Mahalanobis distance to 0 is smaller, else 1
+        state_indices: NDArray[np.int_] = np.where(mahalanobis_sq_0 < mahalanobis_sq_1,
+                                                   self._state_lookup[StateKey.STATE_0],
+                                                   self._state_lookup[StateKey.STATE_1])
+        return state_indices
+
+    def get_predictions(self, shots: NDArray[np.complex64]) -> NDArray[np.int_]:
+        """
+        Classifies shots based on Mahalanobis distance to Gaussian centers.
+
+        :param shots: Array of complex-valued IQ shots to be classified.
+        :return: Array of integer state predictions (0, 1, or 2).
+        """
+        if shots.size == 0:
+            return np.array([], dtype=int)
+
+        points: NDArray[np.float64] = StateAcquisitionContainer.complex_to_real_imag(shots)
+        mu_0: NDArray[np.float64] = self._mean_0.to_vector()
+        mu_1: NDArray[np.float64] = self._mean_1.to_vector()
+
+        # Calculate Mahalanobis distance squared for each point to each Gaussian
+        delta_0: NDArray[np.float64] = points - mu_0
+        delta_1: NDArray[np.float64] = points - mu_1
+        # (v-mu)^T @ inv_cov @ (v-mu) is equivalent to sum( (v-mu)@inv_cov * (v-mu), axis=1)
+        mahalanobis_sq_0: NDArray[np.float64] = np.sum(np.dot(delta_0, self._inv_cov_0) * delta_0, axis=1)
+        mahalanobis_sq_1: NDArray[np.float64] = np.sum(np.dot(delta_1, self._inv_cov_1) * delta_1, axis=1)
+
+        # Determine if points are within the n-sigma threshold
+        threshold_sq: float = self._sigma_threshold ** 2
+        is_in_0: NDArray[np.bool_] = mahalanobis_sq_0 < threshold_sq
+        is_in_1: NDArray[np.bool_] = mahalanobis_sq_1 < threshold_sq
+
+        # Apply classification logic
+        # Default to state 2 (outside both ellipses)
+        predictions: NDArray[np.int_] = np.full(shots.shape, self._state_lookup[StateKey.STATE_2], dtype=np.int_)
+
+        # Case 1: Inside only the 0-state ellipse
+        predictions[is_in_0 & ~is_in_1] = self._state_lookup[StateKey.STATE_0]
+        # Case 2: Inside only the 1-state ellipse
+        predictions[~is_in_0 & is_in_1] = self._state_lookup[StateKey.STATE_1]
+
+        # Case 3: Inside both ellipses (intersection)
+        both_mask: NDArray[np.bool_] = is_in_0 & is_in_1
+        if np.any(both_mask):
+            # Assign to the state with the smaller Mahalanobis distance
+            closer_to_0_mask: NDArray[np.bool_] = mahalanobis_sq_0[both_mask] < mahalanobis_sq_1[both_mask]
+
+            # Get indices of the points that are in the intersection
+            both_indices = np.where(both_mask)[0]
+
+            # Update predictions for points closer to 0
+            predictions[both_indices[closer_to_0_mask]] = self._state_lookup[StateKey.STATE_0]
+            # Update predictions for points closer to 1
+            predictions[both_indices[~closer_to_0_mask]] = self._state_lookup[StateKey.STATE_1]
+
+        return predictions
+
+    def get_prediction(self, shot: np.complex64) -> StateKey:
+        """:return: State key prediction based on a single shot."""
+        prediction_index: NDArray[np.int_] = self.get_predictions(shots=np.asarray([shot]))
+        return self.prediction_index_to_state_lookup[prediction_index[0]]
+
+    def get_fidelity(self, shots: NDArray[np.complex64], assigned_state: StateKey) -> float:
+        """:return: Assignment fidelity defined as the fraction of shots classified as the assigned state."""
+        predictions: NDArray[np.int_] = self.get_predictions(shots)
+        assigned_index: int = self.state_prediction_index_lookup[assigned_state]
+        return float(np.mean(predictions == assigned_index))
+
+    def post_select_on(self, shots_to_filter: NDArray[np.complex64], conditional_shots: NDArray[np.complex64], conditional_state: StateKey) -> NDArray[np.complex64]:
+        """:return: Filtered shots based on conditional shots (of same length) and conditional state."""
+        if len(conditional_shots) == 0:
+            return shots_to_filter
+
+        predictions: NDArray[np.int_] = self.get_predictions(conditional_shots)
+        conditional_index: int = self._state_lookup[conditional_state]
+        mask: NDArray[np.bool_] = (predictions == conditional_index)
+        return shots_to_filter[mask]
+    # endregion
+
+    # region Class Methods
+    @classmethod
+    def from_acquisition_container(cls, container: 'StateAcquisitionContainer', sigma_threshold: float = 3.0) -> 'GaussianDecisionBoundaries':
+        """
+        Factory method to construct the class from a StateAcquisitionContainer.
+
+        :param container: The container holding the acquisition data for states 0 and 1.
+        :param sigma_threshold: The number of standard deviations (sigma) to use as the classification boundary.
+        :return: An instance of GaussianDecisionBoundaries.
+        """
+        # Extract StateAcquisition for states 0 and 1
+        try:
+            acq_0: StateAcquisition = container.get_state_acquisition(StateKey.STATE_0)
+            acq_1: StateAcquisition = container.get_state_acquisition(StateKey.STATE_1)
+        except KeyError as e:
+            raise ValueError(
+                f"StateAcquisitionContainer must contain both STATE_0 and STATE_1 for GaussianDecisionBoundaries. Missing: {e}")
+
+        # Convert complex shots to 2D real vectors
+        shots_0_real_imag: NDArray[np.float64] = StateAcquisitionContainer.complex_to_real_imag(acq_0.shots)
+        shots_1_real_imag: NDArray[np.float64] = StateAcquisitionContainer.complex_to_real_imag(acq_1.shots)
+
+        if shots_0_real_imag.shape[0] < 2 or shots_1_real_imag.shape[0] < 2:
+            raise ValueError("At least 2 shots are required for each state to calculate a covariance matrix.")
+
+        # Get means (centers of the point clouds)
+        mean_0: Vec2D = acq_0.center
+        mean_1: Vec2D = acq_1.center
+
+        # Calculate the 2x2 covariance matrix for each state
+        # rowvar=False because each column is a variable (I and Q)
+        cov_0: NDArray[np.float64] = np.cov(shots_0_real_imag, rowvar=False)
+        cov_1: NDArray[np.float64] = np.cov(shots_1_real_imag, rowvar=False)
+
+        # Calculate the inverse of the covariance matrices
+        try:
+            inv_cov_0: NDArray[np.float64] = np.linalg.inv(cov_0)
+            inv_cov_1: NDArray[np.float64] = np.linalg.inv(cov_1)
+        except np.linalg.LinAlgError as e:
+            raise RuntimeError(f"Could not invert covariance matrix. The data might be collinear. Error: {e}")
+
+        # Create the linear boundaries instance for delegation
+        linear_boundaries = DecisionBoundaries.from_acquisition_container(container)
+
+        # Create and return the class instance
+        return cls(
+            _mean_0=mean_0,
+            _mean_1=mean_1,
+            _inv_cov_0=inv_cov_0,
+            _inv_cov_1=inv_cov_1,
+            _linear_boundaries=linear_boundaries,
+            _sigma_threshold=sigma_threshold,
+        )
     # endregion
 
 
@@ -334,7 +628,7 @@ class StateAcquisitionContainer(IStateAcquisitionContainer):
     Data class, containing raw acquisition shots for state 0, 1 and 2.
     """
     state_acquisition_lookup: Dict[StateKey, StateAcquisition]
-    decision_boundaries: DecisionBoundaries = field(init=False)
+    decision_boundaries: IDecisionBoundaries = field(init=True, default=None)
 
     # region Interface Properties
     @property
@@ -379,16 +673,18 @@ class StateAcquisitionContainer(IStateAcquisitionContainer):
 
     # region Class Methods
     def __post_init__(self):
-        object.__setattr__(self, 'decision_boundaries', DecisionBoundaries.from_acquisition_container(self))
+        if object.__getattribute__(self, 'decision_boundaries') is None:
+            object.__setattr__(self, 'decision_boundaries', DecisionBoundaries.from_acquisition_container(self))
 
     @classmethod
-    def from_state_acquisitions(cls, acquisitions: List[StateAcquisition]) -> 'StateAcquisitionContainer':
+    def from_state_acquisitions(cls, acquisitions: List[StateAcquisition], decision_boundaries: Optional[DecisionBoundaries] = None) -> 'StateAcquisitionContainer':
         """:return: Class method constructor based on array-like of (state) acquisitions."""
         return StateAcquisitionContainer(
             state_acquisition_lookup={
                 acquisition.state: acquisition
                 for acquisition in acquisitions
-            }
+            },
+            decision_boundaries=decision_boundaries,
         )
     # endregion
 
@@ -930,7 +1226,7 @@ class StateClassifierContainer(IStateClassifierContainer):
 class ShotsClassifierContainer(IStateClassifierContainer):
     """Data class, containing classified states based on (complex) acquisition and decision boundaries."""
     shots: NDArray[np.complex64]
-    decision_boundaries: DecisionBoundaries
+    decision_boundaries: IDecisionBoundaries
     _expected_parity: ParityType = field(default=ParityType.EVEN)
     _stabilizer_reset: bool = field(default=False)
     _odd_weight_and_refocusing: bool = field(default=False)
