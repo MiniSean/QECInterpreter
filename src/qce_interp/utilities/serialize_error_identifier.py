@@ -24,6 +24,10 @@ from qce_interp.decoder_examples.majority_voting import MajorityVotingDecoder
 from qce_interp.utilities.initial_state_manager import InitialStateManager
 
 
+__all__ = [
+    "construct_processed_dataset",
+]
+
 T = TypeVar("T")
 
 
