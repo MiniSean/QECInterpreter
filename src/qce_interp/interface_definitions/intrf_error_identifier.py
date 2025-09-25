@@ -180,6 +180,14 @@ class IErrorDetectionIdentifier(ABC):
         raise InterfaceMethodException
 
     @abstractmethod
+    def copy_with_involved_qubit_ids(self, involved_qubit_ids: List[IQubitID]) -> 'IErrorDetectionIdentifier':
+        """
+        :param involved_qubit_ids: Array-like of involved qubit-ID's to select sub-set data.
+        :return: Newly constructed instance inheriting IErrorDetectionIdentifier interface based on sub-set involved qubit-IDs.
+        """
+        raise InterfaceMethodException
+
+    @abstractmethod
     def get_post_selection_mask(self, cycle_stabilizer_count: int) -> NDArray[np.bool_]:
         """
         Output shape: (N,)
@@ -650,7 +658,7 @@ class ErrorDetectionIdentifier(IErrorDetectionIdentifier):
         result = result.transpose((1, 2, 0))
         return result
 
-    def copy_with_post_selection(self, use_heralded_post_selection: bool = False, use_projected_leakage_post_selection: bool = False, use_all_projected_leakage_post_selection: bool = False, use_stabilizer_leakage_post_selection: bool = False, post_selection_qubits: Optional[List[IQubitID]] = None) -> 'IErrorDetectionIdentifier':
+    def copy_with_post_selection(self, use_heralded_post_selection: bool = False, use_projected_leakage_post_selection: bool = False, use_all_projected_leakage_post_selection: bool = False, use_stabilizer_leakage_post_selection: bool = False, post_selection_qubits: Optional[List[IQubitID]] = None) -> 'ErrorDetectionIdentifier':
         """
         :param use_heralded_post_selection: Use post-selection on heralded initialization.
         :param use_projected_leakage_post_selection: Use post-selection on leakage events during (final) (data) qubit measurement projections.
@@ -673,6 +681,25 @@ class ErrorDetectionIdentifier(IErrorDetectionIdentifier):
             use_all_projected_leakage_post_selection=use_all_projected_leakage_post_selection,
             use_stabilizer_leakage_post_selection=use_stabilizer_leakage_post_selection,
             post_selection_qubits=post_selection_qubits,
+            use_computational_parity=self._use_computational_parity,
+        )
+
+    def copy_with_involved_qubit_ids(self, involved_qubit_ids: List[IQubitID]) -> 'ErrorDetectionIdentifier':
+        """
+        :param involved_qubit_ids: Array-like of involved qubit-ID's to select sub-set data.
+        :return: Newly constructed instance inheriting IErrorDetectionIdentifier interface based on sub-set involved qubit-IDs.
+        """
+        return ErrorDetectionIdentifier(
+            classifier_lookup=self._classifier_lookup,
+            index_kernel=self._index_kernel,
+            involved_qubit_ids=involved_qubit_ids,
+            device_layout=self._device_layout,
+            qec_rounds=self._qec_rounds,
+            use_heralded_post_selection=self._use_post_selection,
+            use_projected_leakage_post_selection=self._use_projected_leakage_post_selection,
+            use_all_projected_leakage_post_selection=self._use_all_projected_leakage_post_selection,
+            use_stabilizer_leakage_post_selection=self._use_stabilizer_leakage_post_selection,
+            post_selection_qubits=self._post_selection_qubits,
             use_computational_parity=self._use_computational_parity,
         )
     # endregion
@@ -1412,7 +1439,7 @@ class LabeledErrorDetectionIdentifier(ILabeledErrorDetectionIdentifier):
 
         return data_array
 
-    def copy_with_post_selection(self, use_heralded_post_selection: bool = False, use_projected_leakage_post_selection: bool = False, use_all_projected_leakage_post_selection: bool = False, use_stabilizer_leakage_post_selection: bool = False, post_selection_qubits: Optional[List[IQubitID]] = None) -> 'IErrorDetectionIdentifier':
+    def copy_with_post_selection(self, use_heralded_post_selection: bool = False, use_projected_leakage_post_selection: bool = False, use_all_projected_leakage_post_selection: bool = False, use_stabilizer_leakage_post_selection: bool = False, post_selection_qubits: Optional[List[IQubitID]] = None) -> 'LabeledErrorDetectionIdentifier':
         """
         :param use_heralded_post_selection: Use post-selection on heralded initialization.
         :param use_projected_leakage_post_selection: Use post-selection on leakage events during (final) (data) qubit measurement projections.
@@ -1428,6 +1455,17 @@ class LabeledErrorDetectionIdentifier(ILabeledErrorDetectionIdentifier):
                 use_all_projected_leakage_post_selection=use_all_projected_leakage_post_selection,
                 use_stabilizer_leakage_post_selection=use_stabilizer_leakage_post_selection,
                 post_selection_qubits=post_selection_qubits,
+            )
+        )
+
+    def copy_with_involved_qubit_ids(self, involved_qubit_ids: List[IQubitID]) -> 'LabeledErrorDetectionIdentifier':
+        """
+        :param involved_qubit_ids: Array-like of involved qubit-ID's to select sub-set data.
+        :return: Newly constructed instance inheriting IErrorDetectionIdentifier interface based on sub-set involved qubit-IDs.
+        """
+        return LabeledErrorDetectionIdentifier(
+            error_detection_identifier=self._error_detection_identifier.copy_with_involved_qubit_ids(
+                involved_qubit_ids=involved_qubit_ids,
             )
         )
 
