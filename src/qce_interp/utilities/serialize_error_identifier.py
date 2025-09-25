@@ -87,23 +87,16 @@ def construct_sub_error_identifiers(error_identifier: ErrorDetectionIdentifier, 
             for state in _initial_state
         ])
 
-        _error_identifier: ErrorDetectionIdentifier = ErrorDetectionIdentifier(
-            classifier_lookup=error_identifier._classifier_lookup,
-            index_kernel=error_identifier._index_kernel,
+        _error_identifier: ErrorDetectionIdentifier = error_identifier.copy_with_involved_qubit_ids(
             involved_qubit_ids=_involved_qubits,
-            device_layout=error_identifier._device_layout,
-            qec_rounds=error_identifier._qec_rounds,
-            use_heralded_post_selection=error_identifier._use_post_selection,
-            use_computational_parity=error_identifier._use_computational_parity,
-            post_selection_qubits=error_identifier._post_selection_qubits,
         )
         decoder_mwpm = MWPMDecoderFast(
             error_identifier=_error_identifier,
-            qec_rounds=_error_identifier._qec_rounds,
+            qec_rounds=_error_identifier.qec_rounds,
             initial_state_container=initial_state_container,
             max_optimization_shots=2000,
             optimize=False,
-            optimized_round=_error_identifier._qec_rounds[-1]
+            optimized_round=_error_identifier.qec_rounds[-1]
         )
         decoder_mv = MajorityVotingDecoder(
             error_identifier=_error_identifier,
