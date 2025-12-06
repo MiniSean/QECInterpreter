@@ -10,6 +10,7 @@ from qce_circuit.structure.acquisition_indexing.intrf_stabilizer_index_kernel im
     IIndexingKernel,
     IStabilizerIndexingKernel,
 )
+from qce_circuit.structure.acquisition_indexing.factory_stabilizer_index_kernel import KernelPartitioner
 
 __all__ = [
     "IIndexStrategy",
@@ -17,4 +18,5 @@ __all__ = [
     "RelativeIndexStrategy",
     "IIndexingKernel",
     "IStabilizerIndexingKernel",
+    "KernelPartitioner",
 ]

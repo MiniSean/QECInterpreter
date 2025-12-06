@@ -15,7 +15,10 @@ from qce_interp.interface_definitions.intrf_connectivity_surface_code import (
     ISurfaceCodeLayer,
     IParityGroup,
 )
-from qce_interp.interface_definitions.intrf_stabilizer_index_kernel import IStabilizerIndexingKernel
+from qce_interp.interface_definitions.intrf_stabilizer_index_kernel import (
+    IStabilizerIndexingKernel,
+    KernelPartitioner,
+)
 from qce_interp.interface_definitions.intrf_state_classification import IStateClassifierContainer
 
 
@@ -193,6 +196,15 @@ class IErrorDetectionIdentifier(ABC):
         Output shape: (N,)
         - N is the number of measurement repetitions.
         :return: Tensor of boolean mask based on post-selection conditions (at specific cycle).
+        """
+        raise InterfaceMethodException
+
+    @abstractmethod
+    def partition_in_equal_sections(self, sections: int) -> List['IErrorDetectionIdentifier']:
+        """
+        Creates a list of subset identifiers based on a self.
+        :param sections: The number of subsets (partitions) to generate.
+        :return: List of independent IErrorDetectionIdentifier objects, each pointing to a unique subset of the data.
         """
         raise InterfaceMethodException
     # endregion
@@ -889,6 +901,28 @@ class ErrorDetectionIdentifier(IErrorDetectionIdentifier):
             )
             result = np.logical_and(result, stabilizer_leakage_selection_mask)
         return result
+
+    def partition_in_equal_sections(self, sections: int) -> List[IErrorDetectionIdentifier]:
+        """
+        Creates a list of subset identifiers based on a self.
+        :param sections: The number of subsets (partitions) to generate.
+        :return: List of independent IErrorDetectionIdentifier objects, each pointing to a unique subset of the data.
+        """
+        results: List[IErrorDetectionIdentifier] = []
+        for subsection_index_kernel in KernelPartitioner.partition_in_equal_sections(index_kernel=self._index_kernel, sections=sections):
+            results.append(ErrorDetectionIdentifier(
+                classifier_lookup=self._classifier_lookup,
+                index_kernel=subsection_index_kernel,
+                involved_qubit_ids=self._involved_qubit_ids,
+                device_layout=self._device_layout,
+                qec_rounds=self._qec_rounds,
+                use_heralded_post_selection=self._use_post_selection,
+                use_projected_leakage_post_selection=self._use_projected_leakage_post_selection,
+                use_stabilizer_leakage_post_selection=self._use_stabilizer_leakage_post_selection,
+                post_selection_qubits=self._post_selection_qubits,
+                use_computational_parity=self._use_computational_parity,
+            ))
+        return results
     # endregion
 
     # region Static Class Methods
@@ -1478,5 +1512,18 @@ class LabeledErrorDetectionIdentifier(ILabeledErrorDetectionIdentifier):
         return self._error_detection_identifier.get_post_selection_mask(
             cycle_stabilizer_count=cycle_stabilizer_count,
         )
+
+    def partition_in_equal_sections(self, sections: int) -> List[ILabeledErrorDetectionIdentifier]:
+        """
+        Creates a list of subset identifiers based on a self.
+        :param sections: The number of subsets (partitions) to generate.
+        :return: List of independent IErrorDetectionIdentifier objects, each pointing to a unique subset of the data.
+        """
+        results: List[ILabeledErrorDetectionIdentifier] = []
+        for error_identifier in super().partition_in_equal_sections(sections=sections):
+            results.append(LabeledErrorDetectionIdentifier(
+                error_detection_identifier=error_identifier,
+            ))
+        return results
     # endregion
 
