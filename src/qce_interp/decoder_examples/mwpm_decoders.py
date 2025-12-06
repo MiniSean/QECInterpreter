@@ -370,6 +370,7 @@ class MWPMDecoderFast(IDecoder):
             optimize: bool = True,
             optimized_round: int = 10,
             max_optimization_shots: int = 1000,
+            use_diagonal_matching_weights: bool = False,
     ):
         self._error_identifier: IErrorDetectionIdentifier = error_identifier
         self._initial_state_container: InitialStateContainer = initial_state_container
@@ -377,6 +378,7 @@ class MWPMDecoderFast(IDecoder):
         self._contains_qubit_refocusing: bool = contains_qubit_refocusing
         self._optimized_round = optimized_round
         self._optimization_idx = list(self.qec_rounds).index(optimized_round)
+        self._use_diagonal_matching_weights: bool = use_diagonal_matching_weights
 
         # binary initial state
         self.initial_state = np.sum(self._initial_state_container.as_array) % 2
@@ -446,26 +448,28 @@ class MWPMDecoderFast(IDecoder):
                 ancilla_q_idx = (i - (cycle_stabilizer_count + 1) * self.distance) % (self.distance - 1)
                 matching.add_edge(edge[0], edge[1], weight=self.time_like_weights[ancilla_q_idx],
                                   fault_ids=edge[2]['fault_ids'])
-        # diagonal edges, order is A1R1, A2R1, A1R2, A2R2, A1R3, A2R3... Here we don't consider the order of CZ gates
-        for ancilla_q_idx in range(self.distance - 1):
-            for round_ in range(cycle_stabilizer_count):  # The last round is assumed perfect
-                node_idx = ancilla_q_idx + round_ * (self.distance - 1)
-                if ancilla_q_idx == 0:  # the first ancilla
-                    # add right edge
-                    matching.add_edge(node_idx, node_idx + self.distance,
-                                      weight=self.right_diagonal_weights[ancilla_q_idx],
-                                      fault_ids=ancilla_q_idx + 1)  # data qb idx = idx+1
-                elif ancilla_q_idx == self.distance - 2:  # the last ancilla
-                    # add left edge
-                    matching.add_edge(node_idx, node_idx + self.distance - 2,
-                                      weight=self.left_diagonal_weights[ancilla_q_idx - 1],
-                                      fault_ids=ancilla_q_idx)  # data qb idx = idx
-                else:
-                    # add left and right edges
-                    matching.add_edge(node_idx, node_idx + self.distance - 2,
-                                      weight=self.left_diagonal_weights[ancilla_q_idx - 1], fault_ids=ancilla_q_idx)
-                    matching.add_edge(node_idx, node_idx + self.distance,
-                                      weight=self.right_diagonal_weights[ancilla_q_idx], fault_ids=ancilla_q_idx + 1)
+
+        if self._use_diagonal_matching_weights:
+            # diagonal edges, order is A1R1, A2R1, A1R2, A2R2, A1R3, A2R3... Here we don't consider the order of CZ gates
+            for ancilla_q_idx in range(self.distance - 1):
+                for round_ in range(cycle_stabilizer_count):  # The last round is assumed perfect
+                    node_idx = ancilla_q_idx + round_ * (self.distance - 1)
+                    if ancilla_q_idx == 0:  # the first ancilla
+                        # add right edge
+                        matching.add_edge(node_idx, node_idx + self.distance,
+                                          weight=self.right_diagonal_weights[ancilla_q_idx],
+                                          fault_ids=ancilla_q_idx + 1)  # data qb idx = idx+1
+                    elif ancilla_q_idx == self.distance - 2:  # the last ancilla
+                        # add left edge
+                        matching.add_edge(node_idx, node_idx + self.distance - 2,
+                                          weight=self.left_diagonal_weights[ancilla_q_idx - 1],
+                                          fault_ids=ancilla_q_idx)  # data qb idx = idx
+                    else:
+                        # add left and right edges
+                        matching.add_edge(node_idx, node_idx + self.distance - 2,
+                                          weight=self.left_diagonal_weights[ancilla_q_idx - 1], fault_ids=ancilla_q_idx)
+                        matching.add_edge(node_idx, node_idx + self.distance,
+                                          weight=self.right_diagonal_weights[ancilla_q_idx], fault_ids=ancilla_q_idx + 1)
 
         matching.set_boundary_nodes(
             {(self.distance - 1) * (cycle_stabilizer_count + 1)})  # last node as the boundary node
