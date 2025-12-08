@@ -36,7 +36,7 @@ T = TypeVar("T")
 TErrorDetectionIdentifier = TypeVar("TErrorDetectionIdentifier", bound=IErrorDetectionIdentifier)
 
 
-def construct_processed_dataset(error_identifier: ErrorDetectionIdentifier, initial_state: InitialStateContainer, qec_rounds: List[int], code_layout: ISurfaceCodeLayer) -> xr.Dataset:
+def construct_processed_dataset(error_identifier: ErrorDetectionIdentifier, initial_state: InitialStateContainer, qec_rounds: List[int], code_layout: ISurfaceCodeLayer, include_partitioned_fidelities: bool = False) -> xr.Dataset:
 
     processed_dataset = xr.Dataset()
     decoder_set: List[Tuple[MWPMDecoderFast, MajorityVotingDecoder, InitialStateContainer]] = construct_sub_error_identifiers(
@@ -56,14 +56,15 @@ def construct_processed_dataset(error_identifier: ErrorDetectionIdentifier, init
         decoder_set=decoder_set,
         qec_rounds=qec_rounds,
     )
-    # Add bootstrapped logical fidelities
-    processed_dataset = update_bootstrapped_logical_fidelity(
-        dataset=processed_dataset,
-        error_identifier=error_identifier,
-        initial_state=initial_state,
-        code_layout=code_layout,
-        qec_rounds=qec_rounds,
-    )
+    if include_partitioned_fidelities:
+        # Add bootstrapped logical fidelities
+        processed_dataset = update_bootstrapped_logical_fidelity(
+            dataset=processed_dataset,
+            error_identifier=error_identifier,
+            initial_state=initial_state,
+            code_layout=code_layout,
+            qec_rounds=qec_rounds,
+        )
 
     return processed_dataset
 
@@ -112,7 +113,8 @@ def construct_sub_error_identifiers(error_identifier: ErrorDetectionIdentifier, 
             qec_rounds=_error_identifier.qec_rounds,
             initial_state_container=initial_state_container,
             optimize=False,
-            optimized_round=_error_identifier.qec_rounds[-1]
+            optimized_round=_error_identifier.qec_rounds[-1],
+            use_diagonal_matching_weights=False,
         )
         decoder_mv = MajorityVotingDecoder(
             error_identifier=_error_identifier,
