@@ -19,7 +19,7 @@ def initial_state_to_expected_parity(initial_state: InitialStateContainer, parit
         involved_data_qubit_ids=involved_data_qubit_ids,
         involved_ancilla_qubit_ids=involved_ancilla_qubit_ids,
     )
-    assert initial_state.distance == len(involved_data_qubit_ids), f"Expects initial state for all involved data qubits. Instead {initial_state.distance} out of {len(involved_data_qubit_ids)} are present."
+    assert all([_qubit_id in initial_state.initial_states for _qubit_id in involved_data_qubit_ids]), f"Expects initial state for all involved data qubits. Instead {initial_state.distance} out of {len(involved_data_qubit_ids)} are present."
 
     # Reshape to (N, D) array to fit staticmethod function
     initial_state_array = initial_state.as_array.reshape(1, -1)
