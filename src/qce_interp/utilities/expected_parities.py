@@ -22,7 +22,7 @@ def initial_state_to_expected_parity(initial_state: InitialStateContainer, parit
     assert all([_qubit_id in initial_state.initial_states for _qubit_id in involved_data_qubit_ids]), f"Expects initial state for all involved data qubits. Instead {initial_state.distance} out of {len(involved_data_qubit_ids)} are present."
 
     # Reshape to (N, D) array to fit staticmethod function
-    initial_state_array = initial_state.as_array.reshape(1, -1)
+    initial_state_array = initial_state.as_ordered_array(involved_data_qubit_ids).reshape(1, -1)
     computed_parity: np.ndarray = ErrorDetectionIdentifier.calculate_computational_parity(
         array=initial_state_array,
         parity_index_lookup=parity_index_lookup,
