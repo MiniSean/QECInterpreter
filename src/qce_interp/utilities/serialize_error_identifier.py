@@ -95,7 +95,7 @@ def construct_sub_error_identifiers(error_identifier: ErrorDetectionIdentifier, 
         involved_data_qubit_ids=error_identifier.involved_qubit_ids,
     )
 
-    initial_state_arrays = get_odd_subarrays(full_array=initial_state.as_array, skip=1)
+    initial_state_arrays = get_odd_subarrays(full_array=initial_state.as_ordered_array(error_identifier.involved_data_qubit_ids), skip=1)
     involved_qubit_arrays = get_odd_subarrays(full_array=ordered_involved_qubit_ids, skip=2)
 
     result: List[Tuple[MWPMDecoderFast, MajorityVotingDecoder, InitialStateContainer]] = []
