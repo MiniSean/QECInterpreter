@@ -100,10 +100,12 @@ def construct_sub_error_identifiers(error_identifier: ErrorDetectionIdentifier, 
 
     result: List[Tuple[MWPMDecoderFast, MajorityVotingDecoder, InitialStateContainer]] = []
     for _initial_state, _involved_qubits in zip(initial_state_arrays, involved_qubit_arrays):
-        initial_state_container: InitialStateContainer = InitialStateContainer.from_ordered_list([
-            InitialStateEnum.ZERO if state == 0 else InitialStateEnum.ONE
-            for state in _initial_state
-        ])
+        involved_data_qubits = [q for q in _involved_qubits if q in code_layout.data_qubit_ids]
+        initial_state_container: InitialStateContainer = InitialStateContainer(
+            initial_states={
+                _qubit_id: InitialStateEnum.ZERO if state == 0 else InitialStateEnum.ONE
+            for _qubit_id, state in zip(involved_data_qubits, _initial_state)
+        })
 
         _error_identifier: ErrorDetectionIdentifier = error_identifier.copy_with_involved_qubit_ids(
             involved_qubit_ids=_involved_qubits,

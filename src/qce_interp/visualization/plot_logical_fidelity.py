@@ -8,7 +8,7 @@ from tqdm import tqdm
 import numpy as np
 from scipy.optimize import curve_fit
 from qce_circuit.language import InitialStateContainer
-from qce_interp.definitions import Singleton
+from qce_circuit.connectivity.intrf_channel_identifier import IQubitID
 from qce_interp.utilities.custom_exceptions import ZeroClassifierShotsException
 from qce_interp.interface_definitions.intrf_syndrome_decoder import IDecoder
 from qce_interp.decoder_examples.mwpm_decoders import (
@@ -64,6 +64,36 @@ class DecoderToLabel:
         if decoder_type in self.decoder_type_to_label:
             return self.decoder_type_to_label[decoder_type]
         return f"{decoder.__class__.__name__}"
+    # endregion
+
+
+@dataclass(frozen=True)
+class DecoderToColor:
+    """
+    Data class, containing decoder class or instance to color.
+    """
+    default_color: str = "grey"
+    decoder_type_to_color: Dict[Type[IDecoder], str] = field(default_factory=dict)
+    decoder_instance_to_color: Dict[IDecoder, str] = field(default_factory=dict)
+
+    # region Class Methods
+    def __post_init__(self):
+        default_decoder_type_to_color: Dict[Type[IDecoder], str] = {
+            MWPMDecoder: orange_red_purple_shades[0],
+            MWPMDecoderFast: orange_red_purple_shades[0],
+            MajorityVotingDecoder: "grey",
+        }
+        default_decoder_type_to_color.update(self.decoder_type_to_color)
+        object.__setattr__(self, 'decoder_type_to_color', default_decoder_type_to_color)
+
+    def to_color(self, decoder: IDecoder) -> str:
+        """:return: label based on decoder instance, else based on decoder type, else default label."""
+        if decoder in self.decoder_instance_to_color:
+            return self.decoder_instance_to_color[decoder]
+        decoder_type = type(decoder)
+        if decoder_type in self.decoder_type_to_color:
+            return self.decoder_type_to_color[decoder_type]
+        return self.default_color
     # endregion
 
 
@@ -136,11 +166,12 @@ def get_fit_plot_arguments(x_array: np.ndarray, y_array: np.ndarray, exclude_fir
     return (plot_x_values, plot_y_values), plot_args
 
 
-def plot_fidelity(decoder: IDecoder, included_rounds: List[int], target_state: InitialStateContainer, label: Optional[str] = None, fit_error_rate: bool = False, **kwargs) -> IFigureAxesPair:
+def plot_fidelity(decoder: IDecoder, included_rounds: List[int], target_state: InitialStateContainer, target_state_order: Optional[List[IQubitID]] = None, label: Optional[str] = None, fit_error_rate: bool = False, **kwargs) -> IFigureAxesPair:
     """
     :param decoder: Decoder used to evaluate fidelity at each QEC-round.
     :param included_rounds: Array-like of included QEC-rounds. Each round will be evaluated.
     :param target_state: InitialStateContainer instance representing target state.
+    :param target_state_order: (Optional) list of ordered qubit-ID's, used to construct the target state.
     :param fit_error_rate: (Optional) Boolean whether or not to fit the logical error rate to fidelity values.
     :param label: (Optional) Label passed to plot constructor.
     :param kwargs: Key-word arguments passed to subplot constructor.
@@ -152,8 +183,8 @@ def plot_fidelity(decoder: IDecoder, included_rounds: List[int], target_state: I
     y_err_array: np.ndarray = np.full_like(x_array, np.nan, dtype=np.float32)
     for i, x in tqdm(enumerate(x_array), desc=f"Processing {decoder.__class__.__name__} Decoder", total=len(x_array)):
         try:
-            value: float = decoder.get_fidelity(x, target_state=target_state.as_array)
-            value_err: float = decoder.get_fidelity_uncertainty(x, target_state=target_state.as_array)
+            value: float = decoder.get_fidelity(x, target_state=target_state.as_ordered_array(qubit_order=target_state_order))
+            value_err: float = decoder.get_fidelity_uncertainty(x, target_state=target_state.as_ordered_array(qubit_order=target_state_order))
         except ZeroClassifierShotsException:
             value = np.nan
             value_err = np.nan
@@ -182,7 +213,7 @@ def plot_fidelity(decoder: IDecoder, included_rounds: List[int], target_state: I
     )
     contains_nan_values: bool = np.isnan(y_array).any()
     if fit_error_rate and not contains_nan_values:
-        code_distance: int = len(target_state.as_array)
+        code_distance: int = len(target_state.as_ordered_array(qubit_order=target_state_order))
         exclude_first_n: int = code_distance
         if code_distance < 5:
             exclude_first_n = 2 * code_distance
@@ -202,12 +233,13 @@ def plot_fidelity(decoder: IDecoder, included_rounds: List[int], target_state: I
     return fig, ax
 
 
-def plot_compare_fidelity(decoders: List[IDecoder], included_rounds: List[int], target_state: InitialStateContainer, decoder_labels: DecoderToLabel = DecoderToLabel(), **kwargs) -> IFigureAxesPair:
+def plot_compare_fidelity(decoders: List[IDecoder], included_rounds: List[int], target_state: InitialStateContainer, target_state_order: Optional[List[IQubitID]] = None, decoder_labels: DecoderToLabel = DecoderToLabel(), decoder_colors: DecoderToColor = DecoderToColor(), **kwargs) -> IFigureAxesPair:
     """
     Plots multiple decoders fidelity in one subplot.
     :param decoders: Decoder used to evaluate fidelity at each QEC-round.
     :param included_rounds: Array-like of included QEC-rounds. Each round will be evaluated.
     :param target_state: InitialStateContainer instance representing target state.
+    :param target_state_order: (Optional) list of ordered qubit-ID's, used to construct the target state.
     :param decoder_labels: (Optional) Translation from decoder to label.
     :param kwargs: Key-word arguments passed to subplot constructor.
     :return: Tuple of Figure and Axes pair.
@@ -217,11 +249,12 @@ def plot_compare_fidelity(decoders: List[IDecoder], included_rounds: List[int], 
     fig, ax = construct_subplot(**kwargs)
     for decoder in decoders:
         kwargs[SubplotKeywordEnum.HOST_AXES.value] = (fig, ax)
-        kwargs['color'] = next(color_cycle)
+        kwargs['color'] = decoder_colors.to_color(decoder)  # next(color_cycle)
         fig, ax = plot_fidelity(
             decoder=decoder,
             included_rounds=included_rounds,
             target_state=target_state,
+            target_state_order=target_state_order,
             label=decoder_labels.to_label(decoder=decoder),
             fit_error_rate=True,
             **kwargs,
