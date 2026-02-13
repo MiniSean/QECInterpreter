@@ -28,12 +28,12 @@ class InitialStateToExpectedParityTestCase(unittest.TestCase):
         """Tests initial state to weight-2 parities."""
 
         expected_parity = initial_state_to_expected_parity(
-            initial_state=InitialStateContainer.from_ordered_list(
-                initial_states=[
-                    InitialStateEnum.ZERO,
-                    InitialStateEnum.ONE,
-                    InitialStateEnum.ONE,
-                ]
+            initial_state=InitialStateContainer(
+                initial_states={
+                    QubitIDObj('D4'): InitialStateEnum.ZERO,
+                    QubitIDObj('D5'): InitialStateEnum.ONE,
+                    QubitIDObj('D6'): InitialStateEnum.ONE,
+                }
             ),
             parity_layout=Repetition17Layer(),
             involved_data_qubit_ids=[
@@ -60,13 +60,13 @@ class InitialStateToExpectedParityTestCase(unittest.TestCase):
         """Tests initial state to weight-4 and weight-2 parities."""
 
         expected_parity = initial_state_to_expected_parity(
-            initial_state=InitialStateContainer.from_ordered_list(
-                initial_states=[
-                    InitialStateEnum.ZERO,
-                    InitialStateEnum.ONE,
-                    InitialStateEnum.ONE,
-                    InitialStateEnum.ONE,
-                ]
+            initial_state=InitialStateContainer(
+                initial_states={
+                    QubitIDObj('D4'): InitialStateEnum.ZERO,
+                    QubitIDObj('D5'): InitialStateEnum.ONE,
+                    QubitIDObj('D1'): InitialStateEnum.ONE,
+                    QubitIDObj('D2'): InitialStateEnum.ONE,
+                },
             ),
             parity_layout=Surface17Layer(),
             involved_data_qubit_ids=[

@@ -12,8 +12,11 @@ from qce_circuit.language.intrf_declarative_circuit import (
 )
 from qce_circuit.connectivity.intrf_channel_identifier import IQubitID
 from qce_circuit.connectivity.intrf_connectivity_surface_code import ISurfaceCodeLayer
+from qce_circuit.structure.acquisition_indexing.kernel_repetition_code import SimulatedRepetitionExperimentKernel
 from qce_interp.utilities.custom_exceptions import ZeroClassifierShotsException
+from qce_interp.interface_definitions.intrf_state_classification import StateClassifierContainer, ParityType
 from qce_interp.interface_definitions.intrf_error_identifier import (
+    IErrorDetectionIdentifier,
     ErrorDetectionIdentifier,
     ILabeledErrorDetectionIdentifier,
     LabeledErrorDetectionIdentifier,
@@ -22,6 +25,7 @@ from qce_interp.interface_definitions.intrf_error_identifier import (
 from qce_interp.decoder_examples.mwpm_decoders import MWPMDecoderFast
 from qce_interp.decoder_examples.majority_voting import MajorityVotingDecoder
 from qce_interp.utilities.initial_state_manager import InitialStateManager
+from qce_interp.utilities.expected_parities import initial_state_to_expected_parity
 
 
 __all__ = [
@@ -29,9 +33,10 @@ __all__ = [
 ]
 
 T = TypeVar("T")
+TErrorDetectionIdentifier = TypeVar("TErrorDetectionIdentifier", bound=IErrorDetectionIdentifier)
 
 
-def construct_processed_dataset(error_identifier: ErrorDetectionIdentifier, initial_state: InitialStateContainer, qec_rounds: List[int], code_layout: ISurfaceCodeLayer) -> xr.Dataset:
+def construct_processed_dataset(error_identifier: ErrorDetectionIdentifier, initial_state: InitialStateContainer, qec_rounds: List[int], code_layout: ISurfaceCodeLayer, include_partitioned_fidelities: bool = False) -> xr.Dataset:
 
     processed_dataset = xr.Dataset()
     decoder_set: List[Tuple[MWPMDecoderFast, MajorityVotingDecoder, InitialStateContainer]] = construct_sub_error_identifiers(
@@ -51,6 +56,16 @@ def construct_processed_dataset(error_identifier: ErrorDetectionIdentifier, init
         decoder_set=decoder_set,
         qec_rounds=qec_rounds,
     )
+    if include_partitioned_fidelities:
+        # Add bootstrapped logical fidelities
+        processed_dataset = update_bootstrapped_logical_fidelity(
+            dataset=processed_dataset,
+            error_identifier=error_identifier,
+            initial_state=initial_state,
+            code_layout=code_layout,
+            qec_rounds=qec_rounds,
+            partition_sections=10,
+        )
 
     return processed_dataset
 
@@ -81,15 +96,17 @@ def construct_sub_error_identifiers(error_identifier: ErrorDetectionIdentifier, 
         involved_data_qubit_ids=error_identifier.involved_qubit_ids,
     )
 
-    initial_state_arrays = get_odd_subarrays(full_array=initial_state.as_array, skip=1)
+    initial_state_arrays = get_odd_subarrays(full_array=initial_state.as_ordered_array(error_identifier.involved_data_qubit_ids), skip=1)
     involved_qubit_arrays = get_odd_subarrays(full_array=ordered_involved_qubit_ids, skip=2)
 
     result: List[Tuple[MWPMDecoderFast, MajorityVotingDecoder, InitialStateContainer]] = []
     for _initial_state, _involved_qubits in zip(initial_state_arrays, involved_qubit_arrays):
-        initial_state_container: InitialStateContainer = InitialStateContainer.from_ordered_list([
-            InitialStateEnum.ZERO if state == 0 else InitialStateEnum.ONE
-            for state in _initial_state
-        ])
+        involved_data_qubits = [q for q in _involved_qubits if q in code_layout.data_qubit_ids]
+        initial_state_container: InitialStateContainer = InitialStateContainer(
+            initial_states={
+                _qubit_id: InitialStateEnum.ZERO if state == 0 else InitialStateEnum.ONE
+            for _qubit_id, state in zip(involved_data_qubits, _initial_state)
+        })
 
         _error_identifier: ErrorDetectionIdentifier = error_identifier.copy_with_involved_qubit_ids(
             involved_qubit_ids=_involved_qubits,
@@ -98,9 +115,9 @@ def construct_sub_error_identifiers(error_identifier: ErrorDetectionIdentifier, 
             error_identifier=_error_identifier,
             qec_rounds=_error_identifier.qec_rounds,
             initial_state_container=initial_state_container,
-            max_optimization_shots=2000,
             optimize=False,
-            optimized_round=_error_identifier.qec_rounds[-1]
+            optimized_round=_error_identifier.qec_rounds[-1],
+            use_diagonal_matching_weights=False,
         )
         decoder_mv = MajorityVotingDecoder(
             error_identifier=_error_identifier,
@@ -167,3 +184,109 @@ def update_logical_fidelity(dataset: xr.Dataset, decoder_set: List[Tuple[MWPMDec
         )
 
     return dataset
+
+
+def partition(error_identifier: TErrorDetectionIdentifier, sections: int) -> List[TErrorDetectionIdentifier]:
+    return error_identifier.partition_in_equal_sections(sections=sections)
+
+
+def update_bootstrapped_logical_fidelity(dataset: xr.Dataset, error_identifier: ErrorDetectionIdentifier, initial_state: InitialStateContainer, code_layout: ISurfaceCodeLayer, qec_rounds: Union[NDArray[np.int_], List[int]], partition_sections: int = 10) -> xr.Dataset:
+    processed_datasets = []
+
+    for sub_error_identifier in partition(error_identifier, sections=partition_sections):
+
+        decoder_set: List[Tuple[MWPMDecoderFast, MajorityVotingDecoder, InitialStateContainer]] = construct_sub_error_identifiers(
+            error_identifier=sub_error_identifier,
+            initial_state=initial_state,
+            code_layout=code_layout,
+        )
+        processed_dataset = xr.Dataset()
+        processed_dataset = update_logical_fidelity(
+            dataset=processed_dataset,
+            decoder_set=decoder_set,
+            qec_rounds=qec_rounds,
+        )
+        processed_datasets.append(processed_dataset)
+    # Concatenate datasets
+    bootstrap_dim: str = "bootstrapped"
+    combined_ds = xr.concat(processed_datasets, dim=bootstrap_dim)
+    combined_ds = combined_ds.assign_coords({bootstrap_dim: np.arange(combined_ds.sizes[bootstrap_dim])})
+    combined_ds = combined_ds.squeeze(dim="qec_cycles")
+    rename_dict = {
+        var_name: f"{bootstrap_dim}_{var_name}"
+        for var_name in combined_ds.data_vars
+    }
+    renamed_ds = combined_ds.rename(rename_dict)
+
+    dataset = dataset.merge(renamed_ds)
+
+    return dataset
+
+
+def tensor_to_error_identifier(
+        result_tensor: np.ndarray,
+        depth: int,
+        repetitions: int,
+        initial_state: InitialStateContainer,
+        code_layout: ISurfaceCodeLayer,
+        involved_qubit_ids: List[IQubitID],  # Ordered
+        **kwargs,
+) -> ErrorDetectionIdentifier:
+        # Extract keyword arguments
+        inverse_parity: bool = kwargs.get("inverse_parity", False)
+        stabilizer_active: bool = kwargs.get("stabilizer_active", True)
+
+        # Data allocation
+        involved_data_qubit_ids: List[IQubitID] = [
+            qubit_id
+            for qubit_id in involved_qubit_ids
+            if qubit_id in code_layout.data_qubit_ids
+        ]
+        involved_ancilla_qubit_ids: List[IQubitID] = [
+            qubit_id
+            for qubit_id in involved_qubit_ids
+            if qubit_id in code_layout.ancilla_qubit_ids
+        ]
+        expected_parity = initial_state_to_expected_parity(
+            initial_state=initial_state,
+            parity_layout=code_layout,
+            involved_data_qubit_ids=involved_data_qubit_ids,
+            involved_ancilla_qubit_ids=involved_ancilla_qubit_ids,
+            inverse_parity=inverse_parity,
+            stabilizer_active=stabilizer_active,
+        )
+
+        classifier_lookup = {}
+        for i, qubit_id in enumerate(involved_qubit_ids):
+            state_classification = result_tensor[:, :, i].flatten()
+            state_classification[state_classification == 2] = (
+                1  # Map 0, 1, 2 outcomes to 0, 1
+            )
+
+            classifier_lookup[qubit_id] = StateClassifierContainer(
+                state_classification=state_classification,
+                _expected_parity=(
+                    ParityType.EVEN
+                    if qubit_id not in expected_parity
+                    else expected_parity[qubit_id]
+                ),
+                _stabilizer_reset=False,
+            )
+
+        return ErrorDetectionIdentifier(
+            classifier_lookup=classifier_lookup,
+            index_kernel=SimulatedRepetitionExperimentKernel(
+                rounds=[depth],
+                involved_data_qubit_ids=involved_data_qubit_ids,
+                involved_ancilla_qubit_ids=involved_ancilla_qubit_ids,
+                experiment_repetitions=repetitions,
+            ),
+            involved_qubit_ids=involved_qubit_ids,
+            device_layout=code_layout,
+            qec_rounds=[depth],
+            use_heralded_post_selection=False,
+            use_projected_leakage_post_selection=False,
+            use_stabilizer_leakage_post_selection=False,
+            post_selection_qubits=None,
+            use_computational_parity=True,
+        )
