@@ -28,13 +28,15 @@ class SimulatedDataManagerTestCase(unittest.TestCase):
             QubitIDObj('D5'), QubitIDObj('Z4'), QubitIDObj('D6'), QubitIDObj('Z2'),
             QubitIDObj('D3'),
         ]
-        initial_state: InitialStateContainer = InitialStateContainer.from_ordered_list([
-            InitialStateEnum.ZERO,
-            InitialStateEnum.ONE,
-            InitialStateEnum.ZERO,
-            InitialStateEnum.ONE,
-            InitialStateEnum.ZERO,
-        ])
+        initial_state: InitialStateContainer = InitialStateContainer(
+            initial_states={
+                QubitIDObj('D7'): InitialStateEnum.ZERO,
+                QubitIDObj('D4'): InitialStateEnum.ONE,
+                QubitIDObj('D5'): InitialStateEnum.ZERO,
+                QubitIDObj('D6'): InitialStateEnum.ONE,
+                QubitIDObj('D3'): InitialStateEnum.ZERO,
+            }
+        )
         cls.manager_noiseless = SimulatedDataManager.from_simulated_repetition_code(
             qec_rounds=rounds,
             involved_qubit_ids=involved_qubit_ids,
