@@ -64,6 +64,7 @@ def construct_processed_dataset(error_identifier: ErrorDetectionIdentifier, init
             initial_state=initial_state,
             code_layout=code_layout,
             qec_rounds=qec_rounds,
+            partition_sections=10,
         )
 
     return processed_dataset
