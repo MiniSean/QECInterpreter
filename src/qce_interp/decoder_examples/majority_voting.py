@@ -3,6 +3,7 @@
 # https://arxiv.org/pdf/1703.04136.pdf
 # -------------------------------------------
 import numpy as np
+from qce_circuit.connectivity.intrf_connectivity_surface_code import StabilizerType
 from qce_interp.interface_definitions.intrf_error_identifier import IErrorDetectionIdentifier
 from qce_interp.interface_definitions.intrf_syndrome_decoder import IDecoder
 from qce_interp.interface_definitions.intrf_state_classification import IStateClassifierContainer
@@ -22,8 +23,9 @@ class MajorityVotingDecoder(IDecoder):
     """
 
     # region Class Constructor
-    def __init__(self, error_identifier: IErrorDetectionIdentifier):
+    def __init__(self, error_identifier: IErrorDetectionIdentifier, initial_state_basis: StabilizerType = StabilizerType.STABILIZER_Z):
         self._error_identifier: IErrorDetectionIdentifier = error_identifier
+        self._initial_state_basis: StabilizerType = initial_state_basis
     # endregion
 
     # region ILookupDecoder Interface Methods
@@ -40,7 +42,9 @@ class MajorityVotingDecoder(IDecoder):
         # (N, D)
         corrected_binary_output: np.ndarray = binary_output.reshape((n, d))
         # Correct for refocusing (bit-flips)
-        if cycle_stabilizer_count % 2 == 0 and cycle_stabilizer_count != 0:
+        if self._initial_state_basis == StabilizerType.STABILIZER_X:
+            corrected_binary_output = corrected_binary_output ^ 1
+        elif cycle_stabilizer_count % 2 == 0 and cycle_stabilizer_count != 0:
             corrected_binary_output = IStateClassifierContainer.binary_to_eigenvalue(corrected_binary_output) * -1
             corrected_binary_output = IStateClassifierContainer.eigenvalue_to_binary(corrected_binary_output)
 
