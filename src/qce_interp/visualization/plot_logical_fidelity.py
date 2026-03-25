@@ -213,7 +213,7 @@ def plot_fidelity(decoder: IDecoder, included_rounds: List[int], target_state: I
     )
     contains_nan_values: bool = np.isnan(y_array).any()
     if fit_error_rate and not contains_nan_values:
-        code_distance: int = len(target_state.as_ordered_array(qubit_order=target_state_order))
+        code_distance: int = target_state.distance
         exclude_first_n: int = code_distance
         if code_distance < 5:
             exclude_first_n = 2 * code_distance
