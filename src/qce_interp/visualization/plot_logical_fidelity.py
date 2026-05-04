@@ -215,13 +215,14 @@ def plot_fidelity(decoder: IDecoder, included_rounds: List[int], target_state: I
     if fit_error_rate and not contains_nan_values:
         code_distance: int = target_state.distance
         exclude_first_n: int = code_distance
-        if code_distance < 5:
-            exclude_first_n = 2 * code_distance
+        # if code_distance < 5:
+        #     exclude_first_n = 2 * code_distance
         try:
             args, kwargs = get_fit_plot_arguments(x_array=x_array, y_array=y_array, exclude_first_n=exclude_first_n)
             ax.errorbar(
                 *args,
                 yerr=0.0,
+                zorder=-10,
                 **kwargs,
             )
         except RuntimeError:
