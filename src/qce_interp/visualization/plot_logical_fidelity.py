@@ -128,7 +128,7 @@ def get_fit_plot_arguments(x_array: np.ndarray, y_array: np.ndarray, exclude_fir
     :rtype: Tuple[*args, **kwargs]
     """
     # Bounds for the parameters (assuming error is between 0 and 0.5 and x_0 is within some range)
-    bounds = ([0, -np.inf], [0.5, np.inf])
+    bounds = ([0, 0.9], [0.5, 1.1])
 
     # Exclude the first N points
     x_array_filtered: np.ndarray = x_array[exclude_first_n:]
