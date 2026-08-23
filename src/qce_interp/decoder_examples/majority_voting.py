@@ -23,9 +23,10 @@ class MajorityVotingDecoder(IDecoder):
     """
 
     # region Class Constructor
-    def __init__(self, error_identifier: IErrorDetectionIdentifier, initial_state_basis: StabilizerType = StabilizerType.STABILIZER_Z):
+    def __init__(self, error_identifier: IErrorDetectionIdentifier, initial_state_basis: StabilizerType = StabilizerType.STABILIZER_Z, include_dynamical_decoupling_correction: bool = True):
         self._error_identifier: IErrorDetectionIdentifier = error_identifier
         self._initial_state_basis: StabilizerType = initial_state_basis
+        self._include_dynamical_decoupling_correction: bool = include_dynamical_decoupling_correction  # For backwards compatibility
     # endregion
 
     # region ILookupDecoder Interface Methods
@@ -36,17 +37,20 @@ class MajorityVotingDecoder(IDecoder):
         - D is the number of data qubits.
         :return: Fidelity value of target state at specific cycle.
         """
+        target_logical_state = int(np.sum(target_state) % 2)
         # (N, 1, D)
         binary_output: np.ndarray = self._error_identifier.get_binary_projected_classification(cycle_stabilizer_count=cycle_stabilizer_count)
         n, _, d = binary_output.shape
         # (N, D)
         corrected_binary_output: np.ndarray = binary_output.reshape((n, d))
         # Correct for refocusing (bit-flips)
-        if self._initial_state_basis == StabilizerType.STABILIZER_X:
-            corrected_binary_output = corrected_binary_output ^ 1
-        elif cycle_stabilizer_count % 2 == 0 and cycle_stabilizer_count != 0:
-            corrected_binary_output = IStateClassifierContainer.binary_to_eigenvalue(corrected_binary_output) * -1
-            corrected_binary_output = IStateClassifierContainer.eigenvalue_to_binary(corrected_binary_output)
+        corrected_binary_output = corrected_binary_output ^ target_logical_state
+        if self.include_dynamical_decoupling_correction:
+            if self._initial_state_basis == StabilizerType.STABILIZER_X:
+                corrected_binary_output = corrected_binary_output ^ 1
+            elif cycle_stabilizer_count % 2 == 0 and cycle_stabilizer_count != 0:
+                corrected_binary_output = IStateClassifierContainer.binary_to_eigenvalue(corrected_binary_output) * -1
+                corrected_binary_output = IStateClassifierContainer.eigenvalue_to_binary(corrected_binary_output)
 
         counter: int = 0
         for outcome in corrected_binary_output:
