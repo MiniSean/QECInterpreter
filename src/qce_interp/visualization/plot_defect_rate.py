@@ -183,10 +183,12 @@ def plot_all_defect_rate(error_identifier: IErrorDetectionIdentifier, included_r
     """
     # Data allocation
     fig, ax = construct_subplot(**kwargs)
-    color_cycle = itertools.cycle(blue_shades)
-    for qubit_id in error_identifier.involved_stabilizer_qubit_ids:
+    color_cycle_blue = itertools.cycle(blue_shades)
+    color_cycle_green = itertools.cycle(green_shades)
+    sorted_qubit_ids: List[IQubitID] = list(sorted(error_identifier.involved_stabilizer_qubit_ids, key=lambda x: x.id))
+    for qubit_id in sorted_qubit_ids:
         kwargs[SubplotKeywordEnum.HOST_AXES.value] = (fig, ax)
-        kwargs['color'] = next(color_cycle)
+        kwargs['color'] = next(color_cycle_blue) if "X" in qubit_id.id else next(color_cycle_green)
         fig, ax = plot_defect_rate(
             error_identifier=error_identifier,
             qubit_id=qubit_id,

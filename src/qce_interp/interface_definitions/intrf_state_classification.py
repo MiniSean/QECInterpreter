@@ -1137,12 +1137,12 @@ class IStateClassifierContainer(ABC):
     @staticmethod
     def binary_to_eigenvalue(m: np.ndarray) -> np.ndarray:
         """:return: Translated array from binary to eigenvalue subspace. (0 -> +1, 1 -> -1)."""
-        return (1 - (m * 2)).astype(int)
+        return (1 - (m * 2)).astype(np.int8)
 
     @staticmethod
     def eigenvalue_to_binary(m: np.ndarray) -> np.ndarray:
         """:return: Translated array from eigenvalue to binary subspace. (+1 -> 0, -1 -> 1)."""
-        return ((1 - m) // 2).astype(int)
+        return ((1 - m) // 2).astype(np.int8)
     # endregion
 
 
@@ -1212,12 +1212,13 @@ class StateClassifierContainer(IStateClassifierContainer):
         return float(np.mean(defect_array, axis=axis))
 
     @classmethod
-    def reshape(cls, container: TStateClassifierContainer, index_slices: NDArray[np.int_]) -> TStateClassifierContainer:
+    def reshape(cls, container: 'StateClassifierContainer', index_slices: NDArray[np.int_]) -> 'StateClassifierContainer':
         """:return: Reshaped version of state-classifiers based on iterator of index-slices."""
         return StateClassifierContainer(
             state_classification=np.array([container.state_classification[index_slice] for index_slice in index_slices]),
             _expected_parity=container.expected_parity,
             _stabilizer_reset=container.stabilizer_reset,
+            _odd_weight_and_refocusing=container.odd_weight_and_refocusing,
         )
     # endregion
 
@@ -1303,7 +1304,7 @@ class ShotsClassifierContainer(IStateClassifierContainer):
         return self.state_classifier.get_defect_rate()
 
     @classmethod
-    def reshape(cls, container: TStateClassifierContainer, index_slices: NDArray[np.int_]) -> TStateClassifierContainer:
+    def reshape(cls, container: 'ShotsClassifierContainer', index_slices: NDArray[np.int_]) -> 'ShotsClassifierContainer':
         """:return: Reshaped version of state-classifiers based on iterator of index-slices."""
         return ShotsClassifierContainer(
             shots=np.array([container.shots[index_slice] for index_slice in index_slices]),
