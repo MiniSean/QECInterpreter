@@ -424,6 +424,34 @@ class StateClassificationTestCase(unittest.TestCase):
                     expected_d_alternative,
                     err_msg="Sanity check. Should be equal by definition."
                 )
+
+    def test_state_classifier_container_reshape_preserves_odd_weight_and_refocusing(self):
+        """Tests that reshape preserves the odd_weight_and_refocusing property."""
+        dummy_classification = np.array([0, 1, 0, 1, 0], dtype=int)
+        container = StateClassifierContainer(
+            state_classification=dummy_classification,
+            _expected_parity=ParityType.EVEN,
+            _stabilizer_reset=False,
+            _odd_weight_and_refocusing=True,
+        )
+        self.assertTrue(container.odd_weight_and_refocusing)
+
+        slices = np.array([slice(0, 2), slice(2, 4)])
+        reshaped = StateClassifierContainer.reshape(container=container, index_slices=slices)
+        self.assertTrue(reshaped.odd_weight_and_refocusing)
+        self.assertEqual(reshaped.expected_parity, ParityType.EVEN)
+        self.assertFalse(reshaped.stabilizer_reset)
+
+    def test_binary_eigenvalue_int8_dtype(self):
+        """Tests that binary_to_eigenvalue and eigenvalue_to_binary return np.int8 arrays."""
+        binary = np.array([0, 1, 0, 1], dtype=int)
+        eigenvalue = IStateClassifierContainer.binary_to_eigenvalue(binary)
+        self.assertEqual(eigenvalue.dtype, np.int8)
+        assert_array_equal(eigenvalue, np.array([1, -1, 1, -1], dtype=np.int8))
+
+        reconverted = IStateClassifierContainer.eigenvalue_to_binary(eigenvalue)
+        self.assertEqual(reconverted.dtype, np.int8)
+        assert_array_equal(reconverted, np.array([0, 1, 0, 1], dtype=np.int8))
     # endregion
 
     # region Teardown

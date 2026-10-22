@@ -45,7 +45,7 @@ class MajorityVotingDecoder(IDecoder):
         corrected_binary_output: np.ndarray = binary_output.reshape((n, d))
         # Correct for refocusing (bit-flips)
         corrected_binary_output = corrected_binary_output ^ target_logical_state
-        if self.include_dynamical_decoupling_correction:
+        if self._include_dynamical_decoupling_correction:
             if self._initial_state_basis == StabilizerType.STABILIZER_X:
                 corrected_binary_output = corrected_binary_output ^ 1
             elif cycle_stabilizer_count % 2 == 0 and cycle_stabilizer_count != 0:

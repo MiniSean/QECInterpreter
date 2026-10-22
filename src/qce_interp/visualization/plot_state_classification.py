@@ -39,7 +39,7 @@ STATE_COLORMAP: Dict[StateKey, Colormap] = {
 STATE_LABELMAP: Dict[StateKey, str] = {
     StateKey.STATE_0: 'ground',
     StateKey.STATE_1: 'excited',
-    StateKey.STATE_2: '$2^\mathrm{nd}$ excited',
+    StateKey.STATE_2: r'$2^\mathrm{nd}$ excited',
 }
 
 
@@ -291,14 +291,14 @@ def filter_vertices_within_smaller_angle(center: Vec2D, intersection1: Vec2D, in
 
     def is_clockwise(v1: np.ndarray, v2: np.ndarray) -> bool:
         """:return: Whether moving from v1 to v2 is a clockwise rotation or not."""
-        return np.cross(v1, v2) < 0
+        return (v1[0] * v2[1] - v1[1] * v2[0]) < 0
 
     # Convert Vec2D to numpy arrays
     vec1: np.ndarray = intersection1.to_vector() - center.to_vector()
     vec2: np.ndarray = intersection2.to_vector() - center.to_vector()
 
     # Determine the direction of the smaller angle (clockwise or counter-clockwise)
-    cross_product = np.cross(vec1, vec2)
+    cross_product = vec1[0] * vec2[1] - vec1[1] * vec2[0]
     smaller_angle_is_ccw = cross_product > 0
     # Guard clause, if cross product is very small (aka vec1 and vec2 are almost parallel), set True.
     if abs(cross_product) < 1e-16:
